@@ -95,11 +95,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.AppImage
-            artifacts/**/*.zip
-            artifacts/**/*.yml
+            artifacts/**/MineBench Client-*.exe
+            artifacts/**/MineBench Client-*.dmg
+            artifacts/**/MineBench Client-*.AppImage
+            artifacts/**/latest*.yml
+            artifacts/**/app-update.yml
+            artifacts/**/builder-debug.yml
           draft: false
           prerelease: false
           generate_release_notes: true
