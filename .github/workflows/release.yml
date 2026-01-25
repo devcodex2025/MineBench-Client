@@ -8,11 +8,7 @@ on:
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: macos-latest
     
     steps:
       - name: Checkout code
@@ -30,33 +26,16 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Build for macOS
-        if: matrix.os == 'macos-latest'
-        run: npm run dist:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build for Windows
-        if: matrix.os == 'windows-latest'
-        run: npm run dist:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build for Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run dist:linux
+      - name: Build all platforms (Windows x64, Windows ARM64, macOS x64, macOS ARM64, Linux x64)
+        run: npm run dist:all
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-build
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.yml
+          name: all-platform-builds
+          path: dist
           if-no-files-found: ignore
 
   publish:
@@ -71,15 +50,18 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: all-platform-builds
+          path: artifacts/dist
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.AppImage
+            artifacts/dist/*.exe
+            artifacts/dist/*.dmg
+            artifacts/dist/*.AppImage
+            artifacts/dist/*.zip
+            artifacts/dist/*.yml
           draft: false
           prerelease: false
           generate_release_notes: true
