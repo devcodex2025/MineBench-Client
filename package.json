@@ -116,7 +116,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "karbivskyi",
+      "owner": "devcodex2025",
       "repo": "MineBench-Client"
     }
   }
