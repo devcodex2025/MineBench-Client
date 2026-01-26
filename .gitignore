@@ -19,6 +19,16 @@ build/
 !build/icon.png
 !build/icon.icns
 
+# Code signing certificates and secrets (NEVER COMMIT)
+certs/
+*.pfx
+*.p12
+*.cer
+*.crt
+*.pem
+.env.local
+.env.signing
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

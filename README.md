@@ -22,9 +22,37 @@ Cross-platform desktop mining client built with Electron, React, and Three.js. M
 
 ### Download Pre-built
 Download the latest release for your platform:
-- **Windows**: `MineBench-Client-{version}-x64-setup.exe` or `arm64-setup.exe`
-- **macOS**: `MineBench-Client-{version}-x64.dmg` or `arm64.dmg`
-- **Linux**: `MineBench-Client-{version}-x64.AppImage`
+
+### ⚠️ Antivirus Warnings
+
+**Important**: Some antivirus software may flag MineBench as a threat because it includes XMRig mining software. This is a **false positive** - MineBench is legitimate, open-source software.
+
+#### Why This Happens
+- XMRig is a legitimate Monero mining tool
+- Antivirus programs detect the mining signature and assume it's malware
+- This affects ALL mining software, not just MineBench
+
+#### How to Fix (Windows Defender)
+1. Open **Windows Security** → **Virus & threat protection**
+2. Click **Protection history**
+3. Find the MineBench quarantine entry
+4. Select **Actions** → **Allow on device**
+5. Add to exclusions:
+   - Go to **Virus & threat protection settings**
+   - Click **Manage settings** → **Add or remove exclusions**
+   - Add folder: `C:\Users\{YourName}\AppData\Local\Programs\MineBench Client`
+   - Add folder: `C:\Users\{YourName}\AppData\Roaming\MineBench Client`
+
+#### Other Antivirus Software
+- **Avast/AVG**: Settings → Exceptions → Add exception → Browse to MineBench folder
+- **Norton**: Settings → Antivirus → Exclusions/Low Risks → Add folder
+- **Kaspersky**: Settings → Additional → Threats and Exclusions → Manage exclusions
+- **McAfee**: Virus and Spyware Protection → Excluded Files → Add file/folder
+
+#### Verify Safety
+- Check the source code on [GitHub](https://github.com/devcodex2025/MineBench-Client)
+- Scan with [VirusTotal](https://www.virustotal.com) (expect 5-15 false positives from heuristic scanners)
+- Official XMRig: https://github.com/xmrig/xmrig
 
 ### Build from Source
 ```bash

@@ -85,7 +85,11 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}"
+        "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}",
+        "sign": null,
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
     },
     "mac": {
       "target": [
@@ -114,6 +118,19 @@
       "category": "Utility",
       "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
     },
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "MineBench Client",
+        "deleteAppDataOnUninstall": false,
+        "runAfterFinish": true,
+        "installerIcon": "build/icon.ico",
+        "uninstallerIcon": "build/icon.ico",
+        "license": null,
+        "warningsAsErrors": false
+      },
     "extraFiles": [
       {
         "from": "Miner",
