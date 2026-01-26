@@ -3,8 +3,8 @@ import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle } from
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
 
-const APP_VERSION = '0.4.0';
-const LATEST_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
+const LATEST_VERSION = '0.4.1';
 
 export const Settings = () => {
   const { theme, toggleTheme } = useTheme();
