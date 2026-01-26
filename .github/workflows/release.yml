@@ -100,7 +100,6 @@ jobs:
             artifacts/**/MineBench Client-*.AppImage
             artifacts/**/latest*.yml
             artifacts/**/app-update.yml
-            artifacts/**/builder-debug.yml
           draft: false
           prerelease: false
           generate_release_notes: true
