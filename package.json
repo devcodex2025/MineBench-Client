@@ -87,8 +87,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}",
-      "publisherName": "MineBench"
+      "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}"
     },
     "mac": {
       "target": [
