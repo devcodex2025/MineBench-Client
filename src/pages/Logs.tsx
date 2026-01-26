@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Terminal, Circle, Trash2, Download } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
+import { useTheme } from '../contexts/ThemeContext';
+import { cn } from '../lib/utils';
 
 interface LogEntry {
   time: string;
@@ -9,6 +11,7 @@ interface LogEntry {
 }
 
 export const Logs: React.FC = () => {
+  const { theme } = useTheme();
   const { logs: storeLogs, pools } = useMinerStore();
   const [minerLogs, setMinerLogs] = useState<string[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -83,7 +86,7 @@ export const Logs: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
+          <h1 className={cn("text-2xl font-bold flex items-center gap-3", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
             <Terminal className="w-7 h-7 text-emerald-500" />
             Node Logs
           </h1>
@@ -93,15 +96,21 @@ export const Logs: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={downloadLogs}
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-          >
+            className={cn("px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors",
+              theme === 'light'
+                ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+            )}>
             <Download className="w-4 h-4" />
             Export
           </button>
           <button
             onClick={clearLogs}
-            className="px-4 py-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-          >
+            className={cn("px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors",
+              theme === 'light'
+                ? 'bg-zinc-100 hover:bg-red-500/20 hover:text-red-500 text-zinc-900'
+                : 'bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-white'
+            )}>
             <Trash2 className="w-4 h-4" />
             Clear
           </button>
@@ -111,9 +120,15 @@ export const Logs: React.FC = () => {
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Node Status */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-4">
+        <div className={cn("border rounded-lg p-4",
+          theme === 'light'
+            ? 'bg-white border-zinc-200'
+            : 'bg-zinc-900/50 border-white/5'
+        )}>
           <div className="flex items-center justify-between">
-            <div className="text-xs text-zinc-500 uppercase font-bold tracking-wider">XMR Node</div>
+            <div className={cn("text-xs uppercase font-bold tracking-wider",
+              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+            )}>XMR Node</div>
             <Circle 
               className={`w-3 h-3 ${
                 nodeStatus.status === 'ready' ? 'fill-emerald-500 text-emerald-500' :
@@ -122,18 +137,24 @@ export const Logs: React.FC = () => {
               }`}
             />
           </div>
-          <div className="mt-2 text-sm font-medium">{nodeStatus.text}</div>
+          <div className={cn("mt-2 text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{nodeStatus.text}</div>
           {pools['cpu']?.height > 0 && (
-            <div className="mt-1 text-xs text-zinc-500 font-mono">
+            <div className={cn("mt-1 text-xs font-mono", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
               Block {pools['cpu'].height.toLocaleString()} / {pools['cpu'].targetHeight.toLocaleString()}
             </div>
           )}
         </div>
 
         {/* Miner Status */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-4">
+        <div className={cn("border rounded-lg p-4",
+          theme === 'light'
+            ? 'bg-white border-zinc-200'
+            : 'bg-zinc-900/50 border-white/5'
+        )}>
           <div className="flex items-center justify-between">
-            <div className="text-xs text-zinc-500 uppercase font-bold tracking-wider">Miner</div>
+            <div className={cn("text-xs uppercase font-bold tracking-wider",
+              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+            )}>Miner</div>
             <Circle 
               className={`w-3 h-3 ${
                 minerLogs.length > 0 && minerLogs[minerLogs.length - 1].includes('accepted') 
@@ -144,36 +165,46 @@ export const Logs: React.FC = () => {
               }`}
             />
           </div>
-          <div className="mt-2 text-sm font-medium">
+          <div className={cn("mt-2 text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
             {minerLogs.length > 0 ? 'Active' : 'Idle'}
           </div>
-          <div className="mt-1 text-xs text-zinc-500">
+          <div className={cn("mt-1 text-xs", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
             {minerLogs.length} log entries
           </div>
         </div>
 
         {/* System Logs */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-4">
+        <div className={cn("border rounded-lg p-4",
+          theme === 'light'
+            ? 'bg-white border-zinc-200'
+            : 'bg-zinc-900/50 border-white/5'
+        )}>
           <div className="flex items-center justify-between">
-            <div className="text-xs text-zinc-500 uppercase font-bold tracking-wider">System</div>
+            <div className={cn("text-xs uppercase font-bold tracking-wider",
+              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+            )}>System</div>
             <Circle className="w-3 h-3 fill-zinc-500 text-zinc-500" />
           </div>
-          <div className="mt-2 text-sm font-medium">Monitoring</div>
-          <div className="mt-1 text-xs text-zinc-500">
+          <div className={cn("mt-2 text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Monitoring</div>
+          <div className={cn("mt-1 text-xs", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
             {storeLogs.length} system events
           </div>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-white/5">
+      <div className={cn("flex items-center gap-2 border-b",
+        theme === 'light' ? 'border-zinc-200' : 'border-white/5'
+      )}>
         {(['all', 'miner', 'system'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors relative ${
               filter === tab
-                ? 'text-emerald-400'
+                ? theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
+                : theme === 'light'
+                ? 'text-zinc-600 hover:text-zinc-900'
                 : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
@@ -185,12 +216,18 @@ export const Logs: React.FC = () => {
         ))}
         
         <div className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-zinc-500 cursor-pointer">
+          <label className={cn("flex items-center gap-2 text-sm cursor-pointer",
+            theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+          )}>
             <input
               type="checkbox"
               checked={autoScroll}
               onChange={(e) => setAutoScroll(e.target.checked)}
-              className="rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+              className={cn("rounded border text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0",
+                theme === 'light'
+                  ? 'border-zinc-300 bg-white'
+                  : 'border-zinc-700 bg-zinc-800'
+              )}
             />
             Auto-scroll
           </label>
@@ -200,11 +237,15 @@ export const Logs: React.FC = () => {
       {/* Logs Display */}
       <div
         ref={logContainerRef}
-        className="flex-1 bg-black/40 border border-white/5 rounded-lg p-4 font-mono text-xs overflow-y-auto space-y-1"
+        className={cn("flex-1 border rounded-lg p-4 font-mono text-xs overflow-y-auto space-y-1",
+          theme === 'light'
+            ? 'bg-white border-zinc-200 text-zinc-900'
+            : 'bg-black/40 border-white/5 text-zinc-100'
+        )}
       >
         {filteredLogs.length === 0 ? (
-          <div className="text-center text-zinc-600 py-8">
-            <Terminal className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <div className={cn("text-center py-8", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>
+            <Terminal className={cn("w-12 h-12 mx-auto mb-3 opacity-20", theme === 'light' ? 'text-zinc-400' : 'text-zinc-600')} />
             <p>No logs yet. Start mining to see output.</p>
           </div>
         ) : (
@@ -213,7 +254,7 @@ export const Logs: React.FC = () => {
               key={idx}
               className={`py-1 px-2 rounded hover:bg-white/5 transition-colors ${
                 log.type === 'miner' ? 'text-blue-400' :
-                log.type === 'system' ? 'text-emerald-400' :
+                log.type === 'system' ? (theme === 'light' ? 'text-emerald-600' : 'text-emerald-400') :
                 'text-zinc-400'
               }`}
             >

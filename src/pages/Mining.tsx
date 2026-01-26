@@ -13,6 +13,7 @@ import {
 import * as THREE from 'three';
 import { Play, Square, Flame, Gauge, Zap, Shield, Sparkles, Cpu } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
+import { useTheme } from '../contexts/ThemeContext';
 import { cn, formatHashrate } from '../lib/utils';
 
 const EnergyRing = ({ radius, speed, color, thickness = 0.02 }: { radius: number; speed: number; color: string; thickness?: number }) => {
@@ -143,6 +144,7 @@ const MiningScene = () => (
 );
 
 const Mining: React.FC = () => {
+    const { theme } = useTheme();
     const status = useMinerStore((state) => state.status);
     const setStatus = useMinerStore((state) => state.setStatus);
     const addLog = useMinerStore((state) => state.addLog);
@@ -263,15 +265,21 @@ const Mining: React.FC = () => {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-light text-white">Mining Mode</h1>
+                    <h1 className={cn("text-3xl font-light", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Mining Mode</h1>
                     <p className="text-zinc-500 mt-1">Immersive reactor view with live metrics. Mining to MineBench wallet.</p>
                 </div>
-                <div className="bg-zinc-900 p-1 rounded-lg border border-white/5 flex gap-1">
+                                <div className={cn("p-1 rounded-lg border flex gap-1",
+                                    theme === 'light'
+                                        ? 'bg-white border-zinc-200'
+                                        : 'bg-zinc-900 border-white/5'
+                                )}>
                     <button
                         onClick={() => status !== 'running' && setDeviceType('cpu')}
                         className={cn(
                             'px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all',
-                            deviceType === 'cpu' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
+                            deviceType === 'cpu'
+                                                            ? (theme === 'light' ? 'bg-white text-zinc-900 border border-zinc-300 shadow-sm' : 'bg-zinc-800 text-white shadow-sm')
+                                                            : (theme === 'light' ? 'text-zinc-600 hover:bg-zinc-100' : 'text-zinc-500 hover:text-zinc-300')
                         )}
                     >
                         <Flame size={16} /> RandomX (CPU)
@@ -307,29 +315,37 @@ const Mining: React.FC = () => {
                 <div className="space-y-4">
                     {/* CPU Info Card */}
                     {deviceType === 'cpu' && cpuName && (
-                        <div className="bg-zinc-900/70 border border-white/5 rounded-xl p-4 space-y-3">
-                            <div className="flex items-center gap-2 text-emerald-400">
+                        <div className={cn("border rounded-xl p-4 space-y-3",
+                          theme === 'light'
+                            ? 'bg-white border-zinc-200'
+                            : 'bg-zinc-900/70 border-white/5'
+                        )}>
+                                                        <div className={cn("flex items-center gap-2",
+                                                            theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
+                                                        )}>
                                 <Cpu size={16} />
                                 <span className="font-medium text-sm">CPU Information</span>
                             </div>
                             <div className="space-y-2 text-xs">
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Processor:</span>
-                                    <span className="text-zinc-300 font-mono text-right max-w-[200px] truncate" title={cpuName}>
+                                    <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Processor:</span>
+                                    <span className={cn("font-mono text-right max-w-[200px] truncate", theme === 'light' ? 'text-zinc-900' : 'text-zinc-300')} title={cpuName}>
                                         {cpuName}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Cores/Threads:</span>
-                                    <span className="text-zinc-300 font-mono">{cpuCores}</span>
+                                    <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Cores/Threads:</span>
+                                    <span className={cn("font-mono", theme === 'light' ? 'text-zinc-900' : 'text-zinc-300')}>{cpuCores}</span>
                                 </div>
                             </div>
                             
                             {/* Threads Slider */}
-                            <div className="pt-2 border-t border-white/5 space-y-2">
+                            <div className={cn("pt-2 space-y-2", theme === 'light' ? 'border-t border-zinc-200' : 'border-t border-white/5')}>
                                 <div className="flex justify-between items-center">
-                                    <label className="text-xs text-zinc-500">Mining Threads:</label>
-                                    <span className="text-sm font-mono text-emerald-400">{threads} / {cpuCores}</span>
+                                    <label className={cn("text-xs", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Mining Threads:</label>
+                                                                        <span className={cn("text-sm font-mono",
+                                                                            theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
+                                                                        )}>{threads} / {cpuCores}</span>
                                 </div>
                                 <input
                                     type="range"
@@ -338,29 +354,35 @@ const Mining: React.FC = () => {
                                     value={threads}
                                     onChange={(e) => setThreads(Number(e.target.value))}
                                     disabled={status === 'running'}
-                                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-emerald-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                                    className={cn("w-full h-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-emerald-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer",
+                                      theme === 'light' ? 'bg-zinc-300' : 'bg-zinc-800'
+                                    )}
                                 />
-                                <p className="text-[10px] text-zinc-600">
+                                <p className={cn("text-[10px]", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>
                                     {threads === cpuCores ? 'Maximum performance' : `Using ${Math.round((threads / cpuCores) * 100)}% of CPU`}
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    <div className="bg-zinc-900/70 border border-white/5 rounded-xl p-6 space-y-4">
+                    <div className={cn("border rounded-xl p-6 space-y-4",
+                      theme === 'light'
+                        ? 'bg-white border-zinc-200'
+                        : 'bg-zinc-900/70 border-white/5'
+                    )}>
                         <div className="flex items-center justify-between">
-                            <span className="text-zinc-400 text-sm">Session</span>
+                            <span className={cn("text-sm", theme === 'light' ? 'text-zinc-700' : 'text-zinc-400')}>Session</span>
                             <span className={cn('text-xs px-2 py-1 rounded-full border',
-                                status === 'running' ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                                status === 'running' ? (theme === 'light' ? 'border-emerald-500/40 text-emerald-600 bg-emerald-500/10' : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10')
                                 : status === 'completed' ? 'border-blue-500/30 text-blue-400 bg-blue-500/10'
                                 : status === 'error' ? 'border-red-500/30 text-red-400 bg-red-500/10'
                                 : 'border-white/10 text-zinc-400')}>{status}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <StatCard label="Hashrate" value={formatHashrate(currentHashrate)} icon={<Zap size={16} />} />
-                            <StatCard label="Temp" value={currentTemp ? `${currentTemp.toFixed(1)} °C` : '-'} icon={<Flame size={16} />} />
-                            <StatCard label="Power" value={currentPower ? `${currentPower.toFixed(0)} W` : '-'} icon={<Gauge size={16} />} />
-                            <StatCard label="Session $BMT" value={sessionRewards.toFixed(5)} icon={<Shield size={16} />} />
+                            <StatCard label="Hashrate" value={formatHashrate(currentHashrate)} icon={<Zap size={16} />} theme={theme} />
+                            <StatCard label="Temp" value={currentTemp ? `${currentTemp.toFixed(1)} °C` : '-'} icon={<Flame size={16} />} theme={theme} />
+                            <StatCard label="Power" value={currentPower ? `${currentPower.toFixed(0)} W` : '-'} icon={<Gauge size={16} />} theme={theme} />
+                            <StatCard label="Session $BMT" value={sessionRewards.toFixed(5)} icon={<Shield size={16} />} theme={theme} />
                         </div>
                         <button
                             onClick={status === 'running' ? stopMining : startMining}
@@ -368,7 +390,9 @@ const Mining: React.FC = () => {
                                 'w-full py-4 rounded-lg font-bold text-sm tracking-wide transition-all transform active:scale-[0.98]',
                                 status === 'running'
                                     ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20'
-                                    : 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                                    : (theme === 'light'
+                                        ? 'bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+                                        : 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]')
                             )}
                         >
                             <div className="flex items-center justify-center gap-2">
@@ -378,8 +402,12 @@ const Mining: React.FC = () => {
                         <p className="text-xs text-zinc-500 text-center">Mining to app wallet {wallet.slice(0, 6)}...{wallet.slice(-6)}</p>
                     </div>
 
-                    <div className="bg-zinc-900/70 border border-white/5 rounded-xl p-4 text-sm text-zinc-400 space-y-2">
-                        <div className="flex items-center gap-2 text-white">
+                    <div className={cn("border rounded-xl p-4 text-sm space-y-2",
+                      theme === 'light'
+                        ? 'bg-white border-zinc-200 text-zinc-600'
+                        : 'bg-zinc-900/70 border-white/5 text-zinc-400'
+                    )}>
+                        <div className={cn("flex items-center gap-2", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
                             <Shield size={16} />
                             <span className="font-medium">MineBench safety</span>
                         </div>
@@ -395,13 +423,17 @@ const Mining: React.FC = () => {
     );
 };
 
-const StatCard = ({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) => (
-    <div className="rounded-lg border border-white/5 bg-zinc-950/70 p-3 flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-zinc-500 text-xs uppercase tracking-widest">
+const StatCard = ({ label, value, icon, theme }: { label: string; value: string; icon: React.ReactNode; theme: string }) => (
+    <div className={cn("rounded-lg border p-3 flex flex-col gap-1",
+      theme === 'light'
+        ? 'bg-white border-zinc-200'
+        : 'bg-zinc-950/70 border-white/5'
+    )}>
+        <div className={cn("flex items-center gap-2 text-xs uppercase tracking-widest", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
             {icon}
             <span>{label}</span>
         </div>
-        <div className="text-lg font-mono text-white">{value}</div>
+        <div className={cn("text-lg font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{value}</div>
     </div>
 );
 
