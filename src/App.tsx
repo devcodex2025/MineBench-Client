@@ -38,7 +38,8 @@ const PoolMonitor = () => {
 };
 
 const MiningPage = lazy(() => import('./pages/Mining'));
-const Dashboard = lazy(() => Promise.resolve({ default: () => {
+
+const Dashboard = () => {
     const { pools, totalRewards } = useMinerStore();
     const cpuPool = pools['cpu'];
     const navigate = useNavigate();
@@ -182,7 +183,7 @@ const Dashboard = lazy(() => Promise.resolve({ default: () => {
             </div>
         </div>
     );
-} }));
+};
 
 const Placeholder = ({ name }: { name: string }) => <div className="text-2xl font-bold p-6">{name} (Under Construction)</div>;
 

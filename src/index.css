@@ -6,8 +6,8 @@
 }
 
 body {
-  background-color: theme('colors.zinc.950');
-  color: theme('colors.white');
+  background-color: #09090b;
+  color: #ffffff;
   overflow: hidden; /* App handles scrolling */
 }
 
