@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { TitleBar } from './components/TitleBar';
 import BenchmarkPage from './pages/Benchmark';
 import { Logs } from './pages/Logs';
+import { Settings } from './pages/Settings';
 import { useMinerStore } from './store/useMinerStore';
 import { cn } from './lib/utils';
 import { Activity, Coins, TrendingUp } from 'lucide-react';
@@ -62,7 +63,7 @@ const Dashboard = () => {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-light text-white">Dashboard <span className="text-zinc-600">v1.0</span></h1>
+                <h1 className="text-3xl font-light text-white">Dashboard</h1>
                 <div className="flex items-center gap-4 text-xs font-mono">
                     <div className="flex items-center gap-2">
                         <span className="text-zinc-500 uppercase">Status:</span>
@@ -199,7 +200,7 @@ const App: React.FC = () => {
                     <Route path="/benchmark" element={<BenchmarkPage />} />
                     <Route path="/mining" element={<MiningPage />} />
                     <Route path="/logs" element={<Logs />} />
-                    <Route path="/settings" element={<Placeholder name="Settings" />} />
+                    <Route path="/settings" element={<Settings />} />
                 </Routes>
             </Suspense>
         </Layout>
