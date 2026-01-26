@@ -181,8 +181,23 @@ npm run build
 - Make it executable: `chmod +x MineBench-Client-*.AppImage`
 - Install required libraries: `sudo apt-get install libfuse2`
 
+### Wayland Display Server
+
+MineBench Client includes native Wayland support. If you're running a modern Linux distribution with Wayland:
+
+```bash
+# Wayland is automatically detected and enabled
+npm run dev
+
+# Check if running on Wayland
+echo $WAYLAND_DISPLAY  # Should show: wayland-0
+```
+
+For Wayland-specific troubleshooting, see [WAYLAND_SETUP.md](WAYLAND_SETUP.md).
+
 ## Additional Resources
 
 - **XMRig GitHub:** https://github.com/xmrig/xmrig
 - **Electron Builder Docs:** https://www.electron.build/
 - **Monero Mining Guide:** https://www.getmonero.org/resources/user-guides/mining.html
+- **Wayland Support:** [WAYLAND_SETUP.md](WAYLAND_SETUP.md)

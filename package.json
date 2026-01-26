@@ -1,7 +1,7 @@
 {
   "name": "MineBench-Client",
   "private": true,
-  "version": "0.2.9",
+  "version": "0.3.0",
   "productName": "MineBench Client",
   "type": "module",
   "scripts": {
@@ -116,7 +116,12 @@
       ],
       "icon": "build/icon.png",
       "category": "Utility",
-      "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
+      "executableName": "minebench-client",
+      "desktop": {
+        "Name": "MineBench Client",
+        "Comment": "Mining Benchmark Client",
+        "Keywords": "mining;benchmark;monero;xmr"
+      }
     },
     "nsis": {
       "oneClick": false,

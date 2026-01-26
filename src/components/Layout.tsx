@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { Activity, Hammer, Settings, BarChart3, Terminal, type LucideIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMinerStore } from '../store/useMinerStore';
+import logo from '../assets/miner-icon.svg';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { sessionRewards, status, pools } = useMinerStore();
@@ -14,7 +15,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
            <div className="flex items-center gap-3 px-2 mt-2">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="/MineBench.png" alt="MineBench Logo" className="w-full h-full object-contain" />
+                    <img src={logo} alt="MineBench Logo" className="w-full h-full object-contain" />
                 </div>
                 <div>
                     <h1 className="font-bold text-lg tracking-tight">MineBench</h1>
