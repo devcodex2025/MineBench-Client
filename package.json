@@ -1,7 +1,7 @@
 {
   "name": "MineBench-Client",
   "private": true,
-  "version": "0.2.8",
+  "version": "0.2.9",
   "productName": "MineBench Client",
   "type": "module",
   "scripts": {
@@ -85,11 +85,11 @@
         }
       ],
       "icon": "build/icon.ico",
-        "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}",
-        "sign": null,
-        "signingHashAlgorithms": [
-          "sha256"
-        ]
+      "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}",
+      "sign": null,
+      "signingHashAlgorithms": [
+        "sha256"
+      ]
     },
     "mac": {
       "target": [
@@ -118,19 +118,19 @@
       "category": "Utility",
       "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
     },
-      "nsis": {
-        "oneClick": false,
-        "allowToChangeInstallationDirectory": true,
-        "createDesktopShortcut": true,
-        "createStartMenuShortcut": true,
-        "shortcutName": "MineBench Client",
-        "deleteAppDataOnUninstall": false,
-        "runAfterFinish": true,
-        "installerIcon": "build/icon.ico",
-        "uninstallerIcon": "build/icon.ico",
-        "license": null,
-        "warningsAsErrors": false
-      },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MineBench Client",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "license": null,
+      "warningsAsErrors": false
+    },
     "extraFiles": [
       {
         "from": "Miner",
