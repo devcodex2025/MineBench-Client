@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.3.0",
   "productName": "MineBench Client",
+  "description": "Mining benchmark desktop client with native Wayland support.",
+  "author": "MineBench Team",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -86,10 +88,7 @@
       ],
       "icon": "build/icon.ico",
       "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}",
-      "sign": null,
-      "signingHashAlgorithms": [
-        "sha256"
-      ]
+      "publisherName": "MineBench"
     },
     "mac": {
       "target": [
@@ -116,12 +115,7 @@
       ],
       "icon": "build/icon.png",
       "category": "Utility",
-      "executableName": "minebench-client",
-      "desktop": {
-        "Name": "MineBench Client",
-        "Comment": "Mining Benchmark Client",
-        "Keywords": "mining;benchmark;monero;xmr"
-      }
+      "executableName": "minebench-client"
     },
     "nsis": {
       "oneClick": false,
