@@ -82,7 +82,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName}-${version}-${arch}-setup.${ext}"
+      "artifactName": "${productName}-${version}-Windows-${arch}-setup.${ext}"
     },
     "mac": {
       "target": [
@@ -96,7 +96,7 @@
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-macOS-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -109,7 +109,7 @@
       ],
       "icon": "build/icon.png",
       "category": "Utility",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
     },
     "extraFiles": [
       {
