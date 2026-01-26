@@ -99,7 +99,6 @@ jobs:
             artifacts/**/MineBench Client-*.dmg
             artifacts/**/MineBench Client-*.AppImage
             artifacts/**/latest*.yml
-            artifacts/**/app-update.yml
           draft: false
           prerelease: false
           generate_release_notes: true
