@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMinerStore, DeviceType } from '../store/useMinerStore';
+import { useTheme } from '../contexts/ThemeContext';
 import { Play, Square, Cpu, Monitor, Timer, Zap } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { cn, formatHashrate } from '../lib/utils'; // Assumes formatHashrate is in utils
@@ -9,6 +10,7 @@ import { cn, formatHashrate } from '../lib/utils'; // Assumes formatHashrate is 
 // strictly speaking we use window.electron.invoke defined in preload
 
 const Benchmark = () => {
+    const { theme } = useTheme();
     // Select state individually to avoid unnecessary re-renders
     const status = useMinerStore(state => state.status);
     const setStatus = useMinerStore(state => state.setStatus);
@@ -209,18 +211,24 @@ const Benchmark = () => {
         <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-light text-white">Benchmark Mode</h1>
+                    <h1 className={cn("text-3xl font-light", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Benchmark Mode</h1>
                     <p className="text-zinc-500 mt-1">Test your hardware capabilities and estimate rewards.</p>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
                     <p className="text-zinc-500 text-sm">Mining to MineBench application wallet.</p>
-                    <div className="bg-zinc-900 p-1 rounded-lg border border-white/5 flex gap-1">
+                                        <div className={cn("p-1 rounded-lg border flex gap-1",
+                                            theme === 'light'
+                                                ? 'bg-white border-zinc-200'
+                                                : 'bg-zinc-900 border-white/5'
+                                        )}>
                         <button 
                             onClick={() => status !== 'running' && setDeviceType('cpu')}
                             className={cn(
                                 "px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all",
-                                deviceType === 'cpu' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+                                deviceType === 'cpu'
+                                                                    ? (theme === 'light' ? "bg-white text-zinc-900 border border-zinc-300 shadow-sm" : "bg-zinc-800 text-white shadow-sm")
+                                                                    : (theme === 'light' ? "text-zinc-600 hover:bg-zinc-100" : "text-zinc-500 hover:text-zinc-300")
                             )}
                         >
                             <Cpu size={16} /> Monero (CPU)
@@ -246,25 +254,36 @@ const Benchmark = () => {
                 
                 {/* Control Card */}
                 <div className="lg:col-span-1 space-y-4">
-                    <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-6">
+                    <div className={cn("border rounded-xl p-6",
+                      theme === 'light'
+                        ? 'bg-white border-zinc-200'
+                        : 'bg-zinc-900/50 border-white/5'
+                    )}>
                         <div className="flex justify-between items-center mb-6">
-                            <span className="text-zinc-400 text-sm font-medium">Session Duration</span>
+                            <span className={cn("text-sm font-medium", theme === 'light' ? 'text-zinc-700' : 'text-zinc-400')}>Session Duration</span>
                             <select 
                                 value={duration}
                                 onChange={(e) => setDuration(Number(e.target.value))}
                                 disabled={status === 'running'}
-                                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm text-zinc-300 outline-none focus:border-emerald-500/50"
-                            >
+                                className={cn("border rounded px-2 py-1 text-sm outline-none focus:border-emerald-500/50",
+                                  theme === 'light'
+                                    ? 'bg-zinc-100 border-zinc-300 text-zinc-900'
+                                    : 'bg-zinc-950 border-zinc-800 text-zinc-300'
+                                )}>
                                 <option value={60}>1 Minute</option>
                                 <option value={180}>3 Minutes</option>
                                 <option value={300}>5 Minutes</option>
                             </select>
                         </div>
 
-                        <div className="mb-8 flex flex-col items-center justify-center py-6 border-b border-white/5 border-dashed">
-                             <div className="text-5xl font-mono font-light text-white tracking-tighter">
+                        <div className={cn("mb-8 flex flex-col items-center justify-center py-6 border-b border-dashed",
+                          theme === 'light' ? 'border-zinc-200' : 'border-white/5'
+                        )}>
+                             <div className={cn("text-5xl font-mono font-light tracking-tighter",
+                               theme === 'light' ? 'text-zinc-900' : 'text-white'
+                             )}>
                                 {status === 'running' && timeLeft !== null ? timeLeft : duration}
-                                <span className="text-lg text-zinc-600 ml-1">s</span>
+                                <span className={cn("text-lg ml-1", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}> s</span>
                              </div>
                              <span className="text-xs text-zinc-500 mt-2 uppercase tracking-widest">
                                 {status === 'running' ? 'Time Remaining' : 'Duration'}
@@ -278,7 +297,9 @@ const Benchmark = () => {
                                 "w-full py-4 rounded-lg font-bold text-sm tracking-wide transition-all transform active:scale-[0.98]",
                                 status === 'running' 
                                     ? "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20"
-                                    : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                                    : (theme === 'light'
+                                        ? "bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                                        : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]")
                             )}
                         >
                             <div className="flex items-center justify-center gap-2">
@@ -293,26 +314,48 @@ const Benchmark = () => {
 
                     {/* Live Metrics */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
-                            <div className="flex items-center gap-2 text-zinc-500 mb-2">
-                                <Zap size={14} /> <span className="text-xs">Power</span>
+                        <div className={cn("border rounded-xl p-4",
+                          theme === 'light'
+                            ? 'bg-white border-zinc-200'
+                            : 'bg-zinc-900/50 border-white/5'
+                        )}>
+                            <div className={cn("flex items-center gap-2 mb-2 text-xs",
+                              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+                            )}>
+                                <Zap size={14} /> <span>Power</span>
                             </div>
-                            <div className="text-xl font-mono">{currentPower ? currentPower.toFixed(0) : '-'} <span className="text-xs text-zinc-600">W</span></div>
+                            <div className={cn("text-xl font-mono",
+                              theme === 'light' ? 'text-zinc-900' : 'text-white'
+                            )}>{currentPower ? currentPower.toFixed(0) : '-'} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>W</span></div>
                         </div>
-                        <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
-                             <div className="flex items-center gap-2 text-zinc-500 mb-2">
-                                <Timer size={14} /> <span className="text-xs">Temp</span>
+                        <div className={cn("border rounded-xl p-4",
+                          theme === 'light'
+                            ? 'bg-white border-zinc-200'
+                            : 'bg-zinc-900/50 border-white/5'
+                        )}>
+                             <div className={cn("flex items-center gap-2 mb-2 text-xs",
+                              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+                            )}>
+                                <Timer size={14} /> <span>Temp</span>
                             </div>
-                            <div className="text-xl font-mono">{currentTemp ? currentTemp.toFixed(1) : '-'} <span className="text-xs text-zinc-600">°C</span></div>
+                            <div className={cn("text-xl font-mono",
+                              theme === 'light' ? 'text-zinc-900' : 'text-white'
+                            )}>{currentTemp ? currentTemp.toFixed(1) : '-'} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>°C</span></div>
                         </div>
                     </div>
                 </div>
 
                 {/* Chart Area */}
-                <div className="lg:col-span-2 bg-zinc-900/50 border border-white/5 rounded-xl p-6 flex flex-col">
-                     <h3 className="text-zinc-400 text-sm font-medium mb-6 flex justify-between">
+                <div className={cn("lg:col-span-2 border rounded-xl p-6 flex flex-col",
+                  theme === 'light'
+                    ? 'bg-white border-zinc-200'
+                    : 'bg-zinc-900/50 border-white/5'
+                )}>
+                     <h3 className={cn("text-sm font-medium mb-6 flex justify-between",
+                       theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'
+                     )}>
                         <span>Real-time Hashrate</span>
-                        <span className="text-emerald-400 font-mono">{formatHashrate(currentHashrate)}</span>
+                        <span className={cn("font-mono", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>{formatHashrate(currentHashrate)}</span>
                      </h3>
                      
                      <div className="flex-1 w-full min-h-[300px]">
@@ -349,18 +392,32 @@ const Benchmark = () => {
 
             {/* Results Section */}
             {finalResults && status !== 'running' && (
-                <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-xl p-6 animate-in slide-in-from-bottom-2">
-                    <h3 className="text-emerald-400 font-medium mb-4 flex items-center gap-2">
+                                <div className={cn("border rounded-xl p-6 animate-in slide-in-from-bottom-2",
+                                    theme === 'light'
+                                        ? 'border-emerald-400/30 bg-emerald-500/5'
+                                        : 'border-emerald-500/20 bg-emerald-500/5'
+                                )}>
+                                        <h3 className={cn("font-medium mb-4 flex items-center gap-2",
+                                            theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
+                                        )}>
                         Included in 1.0 DB Report ✅
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         <div>
-                            <div className="text-xs text-emerald-500/60 uppercase tracking-widest">Average Speed</div>
-                            <div className="text-2xl font-mono text-white mt-1">{formatHashrate(finalResults.avg)}</div>
+                                                        <div className={cn("text-xs uppercase tracking-widest",
+                                                            theme === 'light' ? 'text-emerald-700/70' : 'text-emerald-500/60'
+                                                        )}>Average Speed</div>
+                                                        <div className={cn("text-2xl font-mono mt-1",
+                                                            theme === 'light' ? 'text-zinc-900' : 'text-white'
+                                                        )}>{formatHashrate(finalResults.avg)}</div>
                         </div>
                         <div>
-                            <div className="text-xs text-emerald-500/60 uppercase tracking-widest">Max Peak</div>
-                            <div className="text-2xl font-mono text-white mt-1">{formatHashrate(finalResults.max)}</div>
+                                                        <div className={cn("text-xs uppercase tracking-widest",
+                                                            theme === 'light' ? 'text-emerald-700/70' : 'text-emerald-500/60'
+                                                        )}>Max Peak</div>
+                                                        <div className={cn("text-2xl font-mono mt-1",
+                                                            theme === 'light' ? 'text-zinc-900' : 'text-white'
+                                                        )}>{formatHashrate(finalResults.max)}</div>
                         </div>
                         <div>
                             <div className="text-xs text-emerald-500/60 uppercase tracking-widest">Algorithm</div>
