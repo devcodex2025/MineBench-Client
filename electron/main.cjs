@@ -34,6 +34,24 @@ if (displayStatus.isLinux) {
 }
 // === End Display Status Tracking ===
 
+// === Linux Sandbox Support ===
+// Check if user-namespace sandbox is available (Linux only)
+function checkUserNamespaceSandboxSupport() {
+  if (process.platform !== 'linux') return false;
+  try {
+    // Check if kernel supports user namespaces
+    const fs = require('fs');
+    // Test file that indicates user namespace support
+    const nsPath = '/proc/self/ns/user';
+    return fs.existsSync(nsPath);
+  } catch {
+    return false;
+  }
+}
+
+const hasUserNamespaceSandbox = checkUserNamespaceSandboxSupport();
+// === End Linux Sandbox Support ===
+
 // === Wayland Support Configuration ===
 // Detect and configure Wayland support on Linux
 if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
@@ -49,9 +67,18 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
   }
   
   // Linux sandbox configuration for AppImage compatibility
-  // Use user-namespace sandbox instead of SUID sandbox to avoid permission issues
-  // This provides good security without requiring special file permissions
-  app.commandLine.appendSwitch('enable-userns-sandbox');
+  if (hasUserNamespaceSandbox) {
+    // Use user-namespace sandbox (preferred, more secure)
+    app.commandLine.appendSwitch('enable-userns-sandbox');
+    console.log('[Sandbox] Using kernel user-namespace sandbox (secure)');
+  } else {
+    // Fallback: disable sandbox if kernel doesn't support user namespaces
+    // This is necessary in containers, some VMs, and older kernels
+    app.commandLine.appendSwitch('no-sandbox');
+    console.warn('[Sandbox] User-namespace not available; sandbox disabled. Running in less-secure mode.');
+    displayStatus.displayWarnings.push('Sandbox disabled: kernel does not support user-namespaces. Consider updating your system.');
+  }
+  
   // Disable GPU acceleration in problematic environments (some VMs, containers)
   if (process.env.DISABLE_GPU_ACCEL || process.env.CI) {
     app.commandLine.appendSwitch('disable-gpu');
@@ -59,7 +86,6 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
   }
   // Reduce memory issues in constrained environments
   app.commandLine.appendSwitch('disable-dev-shm-usage');
-  console.log('[Sandbox] Configured user-namespace sandbox for Linux AppImage');
 }
 // === End Wayland Configuration ===
 
