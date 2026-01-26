@@ -102,6 +102,39 @@ ipcMain.handle('window-close', () => {
   if (mainWindow) mainWindow.close();
 });
 
+// Auto-start on boot (Windows/macOS)
+function isAutoStartSupported() {
+  return process.platform === 'win32' || process.platform === 'darwin';
+}
+
+ipcMain.handle('get-auto-start', () => {
+  if (!isAutoStartSupported()) {
+    return { supported: false, enabled: false };
+  }
+  try {
+    const settings = app.getLoginItemSettings();
+    return { supported: true, enabled: !!settings.openAtLogin };
+  } catch (err) {
+    console.error('[auto-start] get failed', err);
+    return { supported: true, enabled: false, error: err.message };
+  }
+});
+
+ipcMain.handle('set-auto-start', (event, enable) => {
+  if (!isAutoStartSupported()) {
+    return { success: false, supported: false, enabled: false };
+  }
+  try {
+    const openAtLogin = !!enable;
+    app.setLoginItemSettings({ openAtLogin, openAsHidden: true });
+    const settings = app.getLoginItemSettings();
+    return { success: true, supported: true, enabled: !!settings.openAtLogin };
+  } catch (err) {
+    console.error('[auto-start] set failed', err);
+    return { success: false, supported: true, enabled: false, error: err.message };
+  }
+});
+
 const { exec } = require('child_process');
 const http = require('http');
 

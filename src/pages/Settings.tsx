@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
@@ -12,6 +12,9 @@ export const Settings = () => {
   const [updateChecked, setUpdateChecked] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [autoStartSupported, setAutoStartSupported] = useState(true);
+  const [autoStartLoading, setAutoStartLoading] = useState(false);
+  const autoStartDisabled = autoStartLoading || !autoStartSupported || !window?.electron?.invoke;
 
   const cardClass = cn(
     'rounded-lg p-6 space-y-4',
@@ -49,9 +52,48 @@ export const Settings = () => {
     window.open('https://minebench.app/releases', '_blank');
   };
 
-  const toggleAutoStart = () => {
-    setAutoStart(!autoStart);
+  const refreshAutoStart = useCallback(async () => {
+    if (!window.electron?.invoke) return;
+    setAutoStartLoading(true);
+    try {
+      const res = await window.electron.invoke('get-auto-start');
+      setAutoStart(!!res?.enabled);
+      setAutoStartSupported(res?.supported !== false);
+    } catch (err) {
+      console.error('get-auto-start failed', err);
+      setAutoStartSupported(false);
+    } finally {
+      setAutoStartLoading(false);
+    }
+  }, []);
+
+  const toggleAutoStart = async () => {
+    if (!window.electron?.invoke || autoStartLoading) return;
+    const next = !autoStart;
+    setAutoStart(next);
+    setAutoStartLoading(true);
+    try {
+      const res = await window.electron.invoke('set-auto-start', next);
+      if (res?.supported === false || res?.success === false) {
+        setAutoStartSupported(false);
+        setAutoStart(!next);
+        return;
+      }
+      if (typeof res?.enabled === 'boolean') {
+        setAutoStart(res.enabled);
+      }
+      setAutoStartSupported(true);
+    } catch (err) {
+      console.error('set-auto-start failed', err);
+      setAutoStart(!next);
+    } finally {
+      setAutoStartLoading(false);
+    }
   };
+
+  useEffect(() => {
+    refreshAutoStart();
+  }, [refreshAutoStart]);
 
   return (
     <div className="space-y-6">
@@ -142,15 +184,6 @@ export const Settings = () => {
             </button>
           )}
 
-          <a
-            href="https://minebench.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded border border-blue-500/30 transition-colors text-sm font-medium"
-          >
-            <Download size={16} />
-            Visit MineBench Website
-          </a>
         </div>
       </div>
 
@@ -195,13 +228,18 @@ export const Settings = () => {
           )}>
             <div>
               <p className={cn("text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Auto-Start on Boot</p>
-              <p className={cn("text-xs mt-0.5", theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>Launch application at startup</p>
+              <p className={cn("text-xs mt-0.5", theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>
+                {autoStartSupported ? 'Launch MineBench automatically' : 'Auto-start not available on this OS'}
+              </p>
             </div>
             <button
               onClick={toggleAutoStart}
-              className={`w-12 h-6 rounded-full flex items-center px-1 transition-colors cursor-pointer ${
+              disabled={autoStartDisabled}
+              className={cn(
+                "w-12 h-6 rounded-full flex items-center px-1 transition-colors",
+                autoStartDisabled ? 'opacity-50 cursor-not-allowed bg-zinc-400/50' : 'cursor-pointer',
                 autoStart ? 'bg-emerald-500' : 'bg-zinc-600'
-              }`}
+              )}
             >
               <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
                 autoStart ? 'ml-auto' : ''
