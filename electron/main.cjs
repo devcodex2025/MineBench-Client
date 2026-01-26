@@ -540,6 +540,13 @@ function getMinerPath(minerName) {
     const platform = process.platform; // 'win32', 'darwin', 'linux'
     const arch = process.arch; // 'x64', 'arm64', тощо
     
+    // Маппінг назв майнерів на імена папок (case-sensitive)
+    const minerFolderMap = {
+        'xmrig': 'Xmrig',
+        't-rex': 'T-rex'
+    };
+    const minerFolder = minerFolderMap[minerName] || minerName;
+    
     // Маппінг платформ на назви директорій
     let platformDir;
     let exeExt = '';
@@ -562,10 +569,10 @@ function getMinerPath(minerName) {
     if (app.isPackaged) {
         // У запакованому додатку Miner знаходиться поруч з executable
         const resourcesPath = path.dirname(process.execPath);
-        return path.join(resourcesPath, 'Miner', minerName, platformDir, minerExe);
+        return path.join(resourcesPath, 'Miner', minerFolder, platformDir, minerExe);
     } else {
         // У development режимі
-        return path.join(__dirname, '..', 'Miner', minerName, platformDir, minerExe);
+        return path.join(__dirname, '..', 'Miner', minerFolder, platformDir, minerExe);
     }
 }
 
