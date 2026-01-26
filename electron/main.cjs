@@ -8,6 +8,32 @@ const { randomUUID } = require('crypto');
 const deviceIdFile = path.join(app.getPath('userData'), 'device_id.txt');
 const os = require('os');
 
+// === Display Status Tracking for Linux ===
+let displayStatus = {
+  platform: process.platform,
+  isLinux: process.platform === 'linux',
+  hasDisplay: true,
+  displayWarnings: [],
+  isRunningWithSudo: process.getuid && process.getuid() === 0
+};
+
+// Check Linux display environment
+if (displayStatus.isLinux) {
+  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    displayStatus.hasDisplay = false;
+    displayStatus.displayWarnings.push('No X11 (DISPLAY) or Wayland (WAYLAND_DISPLAY) environment detected');
+  }
+  if (displayStatus.isRunningWithSudo) {
+    displayStatus.displayWarnings.push('Running as root (sudo) may break X11 display forwarding');
+  }
+  if (process.env.DISPLAY && process.env.DISPLAY.startsWith(':')) {
+    displayStatus.displayInfo = `Using X11 (DISPLAY=${process.env.DISPLAY})`;
+  } else if (process.env.WAYLAND_DISPLAY) {
+    displayStatus.displayInfo = `Using Wayland (WAYLAND_DISPLAY=${process.env.WAYLAND_DISPLAY})`;
+  }
+}
+// === End Display Status Tracking ===
+
 // === Wayland Support Configuration ===
 // Detect and configure Wayland support on Linux
 if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
@@ -15,9 +41,12 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
   // Enable IME on Wayland
   app.commandLine.appendSwitch('enable-wayland-ime', 'true');
-  console.log(`[Wayland] Enabled Ozone Wayland support (WAYLAND_DISPLAY=${process.env.WAYLAND_DISPLAY})`);
+  console.log(`[Wayland] Enabled Ozone Wayland support (${displayStatus.displayInfo})`);
 } else if (process.platform === 'linux') {
-  console.log('[Wayland] Running on X11 session');
+  console.log(`[X11] Running on X11 session${displayStatus.displayInfo ? ` (${displayStatus.displayInfo})` : ''}`);
+  if (displayStatus.displayWarnings.length > 0) {
+    displayStatus.displayWarnings.forEach(w => console.warn(`[Display Warning] ${w}`));
+  }
 }
 // === End Wayland Configuration ===
 
@@ -133,6 +162,11 @@ ipcMain.handle('set-auto-start', (event, enable) => {
     console.error('[auto-start] set failed', err);
     return { success: false, supported: true, enabled: false, error: err.message };
   }
+});
+
+// Expose display status to renderer
+ipcMain.handle('get-display-status', () => {
+  return displayStatus;
 });
 
 const { exec } = require('child_process');
@@ -356,41 +390,104 @@ function getAppIcon() {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 1000,
-    minHeight: 700,
-    frame: false,
-    backgroundColor: '#020408',
-    icon: getAppIcon(),
-    // Wayland-specific options for better compatibility
-    useContentSize: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false,
-      preload: path.join(__dirname, "preload.cjs"),
-      enableRemoteModule: false,
-    },
-  });
+  try {
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 1000,
+      minHeight: 700,
+      frame: false,
+      backgroundColor: '#020408',
+      icon: getAppIcon(),
+      // Wayland-specific options for better compatibility
+      useContentSize: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false,
+        preload: path.join(__dirname, "preload.cjs"),
+        enableRemoteModule: false,
+      },
+    });
 
-  if (app.isPackaged) {
-    const indexPath = path.join(app.getAppPath(), "web-dist", "index.html");
-    if (indexPath) {
-      log(`[createWindow] ✅ Found index.html at: ${indexPath}`);
-      mainWindow.loadFile(indexPath).catch((err) => {
-        log(`[createWindow] ❌ loadFile error: ${err}`);
+    if (app.isPackaged) {
+      const indexPath = path.join(app.getAppPath(), "web-dist", "index.html");
+      if (indexPath) {
+        log(`[createWindow] ✅ Found index.html at: ${indexPath}`);
+        mainWindow.loadFile(indexPath).catch((err) => {
+          log(`[createWindow] ❌ loadFile error: ${err}`);
+          mainWindow.webContents.openDevTools();
+        });
+      } else {
+        log(`[createWindow] ❌ No index.html found in packaged app`);
+        mainWindow.loadURL("data:text/html,<h2 style='font-family:sans-serif;color:#c00'>index.html not found</h2>");
         mainWindow.webContents.openDevTools();
-      });
+      }
     } else {
-      log(`[createWindow] ❌ No index.html found in packaged app`);
-      mainWindow.loadURL("data:text/html,<h2 style='font-family:sans-serif;color:#c00'>index.html not found</h2>");
+      mainWindow.loadURL("http://localhost:5173");
       mainWindow.webContents.openDevTools();
     }
-  } else {
-    mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
+
+    // Log successful window creation
+    log(`[createWindow] ✅ Window created successfully on ${process.platform}`);
+    if (displayStatus.displayInfo) {
+      log(`[createWindow] ${displayStatus.displayInfo}`);
+    }
+  } catch (err) {
+    log(`[createWindow] ❌ Fatal error creating window: ${err.message}`);
+    // Attempt fallback: headless mode or data URL with error message
+    if (mainWindow) {
+      const errorHTML = `
+        <html>
+          <head>
+            <style>
+              body { 
+                font-family: sans-serif; 
+                padding: 40px; 
+                background: #020408; 
+                color: #e0e0e0;
+              }
+              h1 { color: #ef4444; margin-top: 0; }
+              .warning { 
+                background: #1f2937; 
+                padding: 20px; 
+                border-radius: 8px; 
+                border-left: 4px solid #ef4444;
+              }
+              code { 
+                background: #111827; 
+                padding: 2px 6px; 
+                border-radius: 3px; 
+                font-family: monospace;
+              }
+              .hint {
+                margin-top: 20px;
+                padding: 15px;
+                background: #1e3a8a;
+                border-radius: 6px;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>⚠️ Display Error</h1>
+            <div class="warning">
+              <p><strong>Error:</strong> ${err.message}</p>
+              <p><strong>Platform:</strong> ${process.platform}</p>
+              ${displayStatus.displayWarnings.length > 0 ? `<p><strong>Issues detected:</strong><ul>${displayStatus.displayWarnings.map(w => `<li>${w}</li>`).join('')}</ul></p>` : ''}
+            </div>
+            <div class="hint">
+              <p><strong>Solution for Linux users:</strong></p>
+              <ul>
+                <li>Run without <code>sudo</code>: <code>./MineBench\ Client-0.3.0.AppImage</code></li>
+                <li>Ensure X11 or Wayland is available</li>
+                <li>Check DISPLAY environment: <code>echo $DISPLAY</code></li>
+              </ul>
+            </div>
+          </body>
+        </html>
+      `;
+      mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`);
+    }
   }
 }
 
