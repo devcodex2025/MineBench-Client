@@ -47,6 +47,19 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
   if (displayStatus.displayWarnings.length > 0) {
     displayStatus.displayWarnings.forEach(w => console.warn(`[Display Warning] ${w}`));
   }
+  
+  // Linux sandbox configuration for AppImage compatibility
+  // Use user-namespace sandbox instead of SUID sandbox to avoid permission issues
+  // This provides good security without requiring special file permissions
+  app.commandLine.appendSwitch('enable-userns-sandbox');
+  // Disable GPU acceleration in problematic environments (some VMs, containers)
+  if (process.env.DISABLE_GPU_ACCEL || process.env.CI) {
+    app.commandLine.appendSwitch('disable-gpu');
+    console.log('[GPU] Disabled GPU acceleration due to environment');
+  }
+  // Reduce memory issues in constrained environments
+  app.commandLine.appendSwitch('disable-dev-shm-usage');
+  console.log('[Sandbox] Configured user-namespace sandbox for Linux AppImage');
 }
 // === End Wayland Configuration ===
 
