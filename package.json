@@ -15,7 +15,10 @@
     "dist:all": "npm run clean && vite build && electron-builder -mwl --publish=never",
     "build:icon": "node ./scripts/make-icon.cjs",
     "electron": "electron electron/main.cjs",
-    "dev:all": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\""
+    "dev:all": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "release:patch": "npm version patch && git push && git push --tags",
+    "release:minor": "npm version minor && git push && git push --tags",
+    "release:major": "npm version major && git push && git push --tags"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.3",
