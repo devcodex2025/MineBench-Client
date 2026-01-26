@@ -8,6 +8,19 @@ const { randomUUID } = require('crypto');
 const deviceIdFile = path.join(app.getPath('userData'), 'device_id.txt');
 const os = require('os');
 
+// === Wayland Support Configuration ===
+// Detect and configure Wayland support on Linux
+if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
+  // Enable Ozone Wayland backend with automatic fallback
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  // Enable IME on Wayland
+  app.commandLine.appendSwitch('enable-wayland-ime', 'true');
+  console.log(`[Wayland] Enabled Ozone Wayland support (WAYLAND_DISPLAY=${process.env.WAYLAND_DISPLAY})`);
+} else if (process.platform === 'linux') {
+  console.log('[Wayland] Running on X11 session');
+}
+// === End Wayland Configuration ===
+
 const workerNameGlobal = os.cpus()[0].model.replace(/\s+/g, '-') ?? "MineBench-Client";
 const supabase = createClient('https://mmwtuyllptkelcfujaod.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1td3R1eWxscHRrZWxjZnVqYW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NDA2ODIsImV4cCI6MjA3NjUxNjY4Mn0.CGVlOAFfRWR9MyRpYW99gppLgVMcrG8sz83bO3YEhoA')
 let deviceUID;
@@ -302,6 +315,13 @@ function log(message) {
   console.log(new Date().toISOString(), message);
 }
 
+function getAppIcon() {
+  const isWindows = process.platform === 'win32';
+  const iconFile = isWindows ? 'icon.ico' : 'icon.png';
+  const baseDir = app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
+  return path.join(baseDir, 'build', iconFile);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -310,11 +330,15 @@ function createWindow() {
     minHeight: 700,
     frame: false,
     backgroundColor: '#020408',
+    icon: getAppIcon(),
+    // Wayland-specific options for better compatibility
+    useContentSize: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
       preload: path.join(__dirname, "preload.cjs"),
+      enableRemoteModule: false,
     },
   });
 

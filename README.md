@@ -23,6 +23,14 @@ Cross-platform desktop mining client built with Electron, React, and Three.js. M
 ### Download Pre-built
 Download the latest release for your platform:
 
+### Linux Wayland Support
+
+MineBench Client now includes native Wayland support for modern Linux distributions (GNOME, KDE Plasma, Sway, etc.).
+
+**For Wayland users:**
+- The application automatically detects and enables Wayland support
+- See [WAYLAND_SETUP.md](WAYLAND_SETUP.md) for troubleshooting and optimization tips
+
 ### ⚠️ Antivirus Warnings
 
 **Important**: Some antivirus software may flag MineBench as a threat because it includes XMRig mining software. This is a **false positive** - MineBench is legitimate, open-source software.
@@ -105,7 +113,7 @@ MB_POOL_URL=xmr.minebench.cloud:30832
 # Install dependencies
 npm install
 
-# Run in development
+# Run in development (auto-detects Wayland/X11 on Linux)
 npm run dev:all
 
 # Build icons
@@ -114,9 +122,24 @@ npm run build:icon
 # Build for specific platform
 npm run dist:win   # Windows
 npm run dist:mac   # macOS
-npm run dist:linux # Linux
+npm run dist:linux # Linux (with Wayland support)
 npm run dist:all   # All platforms
 ```
+
+### Platform-Specific Notes
+
+**Linux:**
+- Wayland support enabled by default
+- Automatic X11 fallback if needed
+- See [WAYLAND_SETUP.md](WAYLAND_SETUP.md) for detailed setup
+
+**macOS:**
+- Supports Intel and Apple Silicon
+- Requires macOS 11.0 or later
+
+**Windows:**
+- Supports x64 and ARM64
+- Windows 10/11 recommended
 
 ## 📁 Project Structure
 
