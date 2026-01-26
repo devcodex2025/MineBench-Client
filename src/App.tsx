@@ -5,6 +5,7 @@ import { TitleBar } from './components/TitleBar';
 import BenchmarkPage from './pages/Benchmark';
 import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { useMinerStore } from './store/useMinerStore';
 import { cn } from './lib/utils';
 import { Activity, Coins, TrendingUp } from 'lucide-react';
@@ -190,21 +191,23 @@ const Placeholder = ({ name }: { name: string }) => <div className="text-2xl fon
 
 const App: React.FC = () => {
   return (
-    <Router>
-        <TitleBar />
-        <PoolMonitor />
-        <Layout>
-            <Suspense fallback={<div className="p-10 text-zinc-500 italic">Loading components...</div>}>
-                <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/benchmark" element={<BenchmarkPage />} />
-                    <Route path="/mining" element={<MiningPage />} />
-                    <Route path="/logs" element={<Logs />} />
-                    <Route path="/settings" element={<Settings />} />
-                </Routes>
-            </Suspense>
-        </Layout>
-    </Router>
+    <ThemeProvider>
+      <Router>
+          <TitleBar />
+          <PoolMonitor />
+          <Layout>
+              <Suspense fallback={<div className="p-10 text-zinc-500 italic">Loading components...</div>}>
+                  <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/benchmark" element={<BenchmarkPage />} />
+                      <Route path="/mining" element={<MiningPage />} />
+                      <Route path="/logs" element={<Logs />} />
+                      <Route path="/settings" element={<Settings />} />
+                  </Routes>
+              </Suspense>
+          </Layout>
+      </Router>
+    </ThemeProvider>
   );
 };
 

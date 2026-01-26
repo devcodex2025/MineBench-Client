@@ -1,0 +1,32 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#FCD34D" stroke-width="2"/>
+  
+  <!-- Main hexagon (mining theme) -->
+  <g transform="translate(100, 100)">
+    <!-- Outer hexagon -->
+    <polygon points="0,-70 60,-35 60,35 0,70 -60,35 -60,-35" fill="none" stroke="#FCD34D" stroke-width="3"/>
+    
+    <!-- Inner hexagon -->
+    <polygon points="0,-45 39,-22.5 39,22.5 0,45 -39,22.5 -39,-22.5" fill="#FCD34D" opacity="0.1"/>
+    
+    <!-- Mining pickaxe (stylized) inside -->
+    <g fill="#FCD34D">
+      <!-- Handle -->
+      <rect x="-8" y="-20" width="16" height="40" rx="8"/>
+      <!-- Head - pick side -->
+      <polygon points="0,-25 15,-20 12,-10 0,-15"/>
+      <!-- Head - hammer side -->
+      <polygon points="0,-25 -15,-20 -12,-10 0,-15"/>
+    </g>
+    
+    <!-- Accent dots for mining theme -->
+    <circle cx="40" cy="-30" r="3" fill="#FCD34D"/>
+    <circle cx="-40" cy="-30" r="3" fill="#FCD34D"/>
+    <circle cx="50" cy="0" r="2.5" fill="#FCD34D" opacity="0.6"/>
+    <circle cx="-50" cy="0" r="2.5" fill="#FCD34D" opacity="0.6"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="100" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FCD34D">MINEBENCH</text>
+</svg>
