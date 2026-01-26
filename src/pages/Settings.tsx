@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 const APP_VERSION = '0.3.0';
 const LATEST_VERSION = '0.3.0';
 
 export const Settings = () => {
+  const { theme, toggleTheme } = useTheme();
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updateChecked, setUpdateChecked] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
   const [autoStart, setAutoStart] = useState(false);
 
   const handleCheckUpdates = async () => {
@@ -23,10 +24,6 @@ export const Settings = () => {
   const handleDownloadUpdate = () => {
     // Open MineBench releases page
     window.open('https://minebench.app/releases', '_blank');
-  };
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
   };
 
   const toggleAutoStart = () => {
@@ -135,13 +132,13 @@ export const Settings = () => {
               <p className="text-xs text-zinc-400 mt-0.5">Enable dark theme</p>
             </div>
             <button
-              onClick={toggleDarkMode}
+              onClick={toggleTheme}
               className={`w-12 h-6 rounded-full flex items-center px-1 transition-colors ${
-                darkMode ? 'bg-emerald-500' : 'bg-zinc-600'
+                theme === 'dark' ? 'bg-emerald-500' : 'bg-zinc-600'
               }`}
             >
               <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                darkMode ? 'ml-auto' : ''
+                theme === 'dark' ? 'ml-auto' : ''
               }`}></div>
             </button>
           </div>
@@ -178,7 +175,6 @@ export const Settings = () => {
           <div className="pt-4 space-y-2 text-xs">
             <p><span className="text-zinc-500">License:</span> MIT</p>
             <p><span className="text-zinc-500">Website:</span> <a href="https://minebench.app" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">minebench.app</a></p>
-            <p><span className="text-zinc-500">Built with:</span> Electron, React, TypeScript, Three.js</p>
             <p><span className="text-zinc-500">Platform Support:</span> Windows, macOS, Linux (with Wayland support)</p>
           </div>
         </div>

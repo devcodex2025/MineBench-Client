@@ -16,12 +16,7 @@ export const TitleBar: React.FC = () => {
 
   return (
     <div className="fixed top-0 left-0 right-0 h-8 bg-zinc-950/95 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-4 z-50 select-none" style={{ WebkitAppRegion: 'drag' } as any}>
-      <div className="flex items-center gap-3">
-        <div className="w-5 h-5 flex items-center justify-center">
-          <img src="/MineBench.png" alt="MineBench" className="w-full h-full object-contain" />
-        </div>
-        <span className="text-xs font-medium text-zinc-400">MineBench Client</span>
-      </div>
+      <span className="text-xs font-medium text-zinc-400">MineBench Client</span>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
         <button
