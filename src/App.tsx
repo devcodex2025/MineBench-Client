@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { TitleBar } from './components/TitleBar';
@@ -9,7 +9,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { useTheme } from './contexts/ThemeContext';
 import { useMinerStore } from './store/useMinerStore';
 import { cn, formatHashrate } from './lib/utils';
-import { Activity, Coins, TrendingUp } from 'lucide-react';
+import { Activity, Coins, TrendingUp, AlertTriangle, X } from 'lucide-react';
 
 const PoolMonitor = () => {
     const updatePoolStatus = useMinerStore(state => state.updatePoolStatus);
@@ -38,6 +38,66 @@ const PoolMonitor = () => {
     }, [updatePoolStatus]);
 
     return null;
+};
+
+// Linux Display Warning Banner
+const DisplayWarningBanner = () => {
+    const { theme } = useTheme();
+    const [displayStatus, setDisplayStatus] = useState<any>(null);
+    const [dismissed, setDismissed] = useState(false);
+
+    useEffect(() => {
+        if (window.electron?.getDisplayStatus) {
+            window.electron.getDisplayStatus().then(status => {
+                setDisplayStatus(status);
+            }).catch(err => {
+                console.error('Failed to get display status:', err);
+            });
+        }
+    }, []);
+
+    if (!displayStatus || dismissed || displayStatus.displayWarnings.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className={cn(
+            "w-full px-4 py-3 flex items-start gap-3 border-b",
+            theme === 'light'
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-yellow-950/30 border-yellow-900/50'
+        )}>
+            <AlertTriangle size={18} className={cn(
+                "flex-shrink-0 mt-0.5",
+                theme === 'light' ? 'text-yellow-700' : 'text-yellow-500'
+            )} />
+            <div className="flex-1 text-sm">
+                <p className={cn("font-medium mb-1", theme === 'light' ? 'text-yellow-900' : 'text-yellow-200')}>
+                    Display Configuration Issue
+                </p>
+                <ul className={cn("text-xs space-y-0.5 ml-4 list-disc", theme === 'light' ? 'text-yellow-800' : 'text-yellow-300')}>
+                    {displayStatus.displayWarnings.map((warning: string, i: number) => (
+                        <li key={i}>{warning}</li>
+                    ))}
+                </ul>
+                {displayStatus.isLinux && (
+                    <p className={cn("text-xs mt-2", theme === 'light' ? 'text-yellow-700' : 'text-yellow-400')}>
+                        <strong>Solution:</strong> Run without sudo: <code className={cn("px-1 rounded", theme === 'light' ? 'bg-yellow-100' : 'bg-black/30')}>./MineBench\ Client-0.3.0.AppImage</code>
+                    </p>
+                )}
+            </div>
+            <button
+                onClick={() => setDismissed(true)}
+                className={cn(
+                    "flex-shrink-0 p-1 rounded hover:bg-yellow-200/50 transition-colors",
+                    theme === 'light' ? 'text-yellow-600' : 'text-yellow-400'
+                )}
+                aria-label="Dismiss warning"
+            >
+                <X size={16} />
+            </button>
+        </div>
+    );
 };
 
 const MiningPage = lazy(() => import('./pages/Mining'));
@@ -238,6 +298,7 @@ const App: React.FC = () => {
     <ThemeProvider>
       <Router>
           <TitleBar />
+          <DisplayWarningBanner />
           <PoolMonitor />
           <Layout>
               <Suspense fallback={<div className="p-10 text-zinc-500 italic">Loading components...</div>}>

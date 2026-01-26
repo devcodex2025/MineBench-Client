@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld("electron", {
   onMinerLog: (callback) => {
     ipcRenderer.on("miner-log", callback);
     return () => ipcRenderer.removeListener("miner-log", callback);
-  }
+  },
+  // Get display/environment status
+  getDisplayStatus: () => ipcRenderer.invoke('get-display-status')
 });
