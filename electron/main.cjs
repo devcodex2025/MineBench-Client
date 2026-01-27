@@ -631,6 +631,7 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, threads 
 
         // Use cross-platform path resolution for Xmrig
         minerPath = getMinerPath('xmrig');
+        minerDir = path.dirname(minerPath);
 
         if (!fs.existsSync(minerPath)) {
             const msg = `Xmrig not found at: ${minerPath}`;
