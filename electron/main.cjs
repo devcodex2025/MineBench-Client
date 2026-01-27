@@ -642,7 +642,11 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, threads 
         // Configuration for MineBench Private Pool (Monero/XMR)
         // Development: Connects to local P2Pool instance (127.0.0.1:3333)
         // Production: MineBench Cloud P2Pool (deployed on Akash)
-        const poolUrl = process.env.MB_POOL_URL || "xmr.minebench.cloud:30832"; 
+        let poolUrl = process.env.MB_POOL_URL || "pool.hashvault.pro:3333"; 
+        // Ensure xmrig-compatible scheme for stratum URL
+        if (!poolUrl.includes('://')) {
+          poolUrl = `stratum+tcp://${poolUrl}`;
+        }
 
         args = [
             "--coin", "monero",
@@ -743,7 +747,7 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
             avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
             avg_power: powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : null,
             algorithm: "KawPow",
-            coin_name: "RVN"
+          coin_name: "XMR"
         };
     } else {
         benchmarkRecord = {
@@ -752,7 +756,7 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
              device_name: os.cpus()[0].model,
              avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
              algorithm: "RandomX",
-             coin_name: "ZEPH"
+           coin_name: "XMR"
         };
     }
 
@@ -771,6 +775,109 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
     }
   } catch (err) {
     log(`❌ Error during stop-miner: ${err.message}`);
+    return `Error: ${err.message}`;
+  }
+});
+
+// Mining-only controls: start/stop without saving benchmark to DB
+ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads }) => {
+  try {
+    if (miner) {
+      return "Miner already running";
+    }
+
+    if (!wallet || !worker) {
+      return "Wallet and Worker name are required";
+    }
+
+    hashRates = [];
+    temps = [];
+    powers = [];
+    startTime = Date.now();
+    currentMinerType = type;
+
+    let minerPath, args;
+
+    if (type === 'gpu') {
+      return "GPU mining for Monero is currently not supported in this version.";
+    } else {
+      const workerFormatted = worker.replace(/\s+/g, '-');
+      minerPath = getMinerPath('xmrig');
+      minerDir = path.dirname(minerPath);
+
+      if (!fs.existsSync(minerPath)) {
+        const msg = `Xmrig not found at: ${minerPath}`;
+        log(msg);
+        return msg;
+      }
+
+      let poolUrl = process.env.MB_POOL_URL || "pool.hashvault.pro:3333";
+      if (!poolUrl.includes('://')) {
+        poolUrl = `stratum+tcp://${poolUrl}`;
+      }
+
+      args = [
+        "--coin", "monero",
+        "-o", poolUrl,
+        "-u", wallet,
+        "-p", workerFormatted,
+        "--http-enabled",
+        "--http-host", "127.0.0.1",
+        "--http-port", "4077",
+        "--donate-level", "1"
+      ];
+
+      if (threads && threads > 0) {
+        args.push("-t", threads.toString());
+        log(`[start-mining] Using ${threads} threads for CPU mining`);
+      }
+
+      log(`[start-mining] Starting CPU miner (XMR) on ${poolUrl}: ${minerPath} ${args.join(' ')}`);
+    }
+
+    miner = spawn(minerPath, args, {
+      windowsHide: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+      cwd: minerDir
+    });
+
+    miner.stdout.on("data", (data) => {
+      const output = data.toString();
+      log(`${type?.toUpperCase() || 'MINER'} stdout: ${output}`);
+      if (event?.sender) event.sender.send("miner-log", output);
+    });
+
+    miner.stderr.on("data", (data) => {
+      const output = data.toString();
+      log(`${type?.toUpperCase() || 'MINER'} stderr: ${output}`);
+      if (event?.sender) event.sender.send("miner-error", output);
+    });
+
+    miner.on("close", (code, signal) => {
+      log(`${type?.toUpperCase() || 'MINER'} exited: code=${code}, signal=${signal}`);
+      miner = null;
+      if (event?.sender) event.sender.send("miner-exit", { code, signal });
+    });
+
+    return "mining running";
+  } catch (err) {
+    const msg = `Error: ${err?.message ?? String(err)}`;
+    log(msg);
+    log(`Full error object: ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
+    return msg;
+  }
+});
+
+ipcMain.handle("stop-mining", async (event) => {
+  try {
+    if (miner) {
+      miner.kill();
+      miner = null;
+    }
+    return "Mining stopped";
+  } catch (err) {
+    log(`❌ Error during stop-mining: ${err.message}`);
     return `Error: ${err.message}`;
   }
 });
