@@ -1,23 +1,29 @@
 {
   "name": "MineBench-Client",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.4.6",
   "productName": "MineBench Client",
   "description": "Mining benchmark desktop client with native Wayland support.",
   "author": "MineBench Team",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --mode development",
+    "dev:prod": "vite --mode production",
     "clean": "rimraf dist",
     "build": "vite build",
-    "dist": "npm run clean && vite build && electron-builder",
-    "dist:win": "npm run clean && vite build && electron-builder --win --publish=never",
-    "dist:mac": "npm run clean && vite build && electron-builder --mac --publish=never",
-    "dist:linux": "npm run clean && vite build && electron-builder --linux --publish=never",
-    "dist:all": "npm run clean && vite build && electron-builder -mwl --publish=never",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
+    "dist": "npm run build:prod && electron-builder",
+    "dist:win": "npm run build:prod && electron-builder --win --publish=never",
+    "dist:mac": "npm run build:prod && electron-builder --mac --publish=never",
+    "dist:linux": "npm run build:prod && electron-builder --linux --publish=never",
+    "dist:all": "npm run build:prod && electron-builder -mwl --publish=never",
     "build:icon": "node ./scripts/make-icon.cjs",
     "electron": "electron electron/main.cjs",
-    "dev:all": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "dev:all": "node ./scripts/dev-all.js",
+    "dev:all:dev": "concurrently \"npm run dev:local\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "dev:all:prod": "concurrently \"npm run dev:prod\" \"wait-on http://localhost:5173 && npm run electron\"",
     "release:patch": "npm version patch && git push && git push --tags",
     "release:minor": "npm version minor && git push && git push --tags",
     "release:major": "npm version major && git push && git push --tags"
@@ -25,6 +31,7 @@
   "dependencies": {
     "@react-three/drei": "^9.114.3",
     "@react-three/fiber": "^8.17.10",
+    "@solana/web3.js": "^1.98.4",
     "@supabase/supabase-js": "^2.76.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
@@ -67,13 +74,12 @@
   "build": {
     "appId": "com.minebench.client",
     "productName": "MineBench Client",
+    "npmRebuild": false,
     "files": [
       "web-dist/**/*",
       "electron/**/*",
       "Miner/**/*",
-      "build/icon.ico",
-      "build/icon.png",
-      "build/icon.icns",
+      "build/**/*",
       "package.json"
     ],
     "win": {
@@ -114,7 +120,8 @@
       ],
       "icon": "build/icon.png",
       "category": "Utility",
-      "executableName": "minebench-client"
+      "executableName": "minebench-client",
+      "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

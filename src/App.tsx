@@ -5,6 +5,7 @@ import { TitleBar } from './components/TitleBar';
 import BenchmarkPage from './pages/Benchmark';
 import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
+import { MiningStatistics } from './pages/Statistics';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useTheme } from './contexts/ThemeContext';
 import { useMinerStore } from './store/useMinerStore';
@@ -103,10 +104,30 @@ const DisplayWarningBanner = () => {
 const MiningPage = lazy(() => import('./pages/Mining'));
 
 const Dashboard = () => {
-    const { pools, totalRewards } = useMinerStore();
+    const { pools, totalRewards, deviceType } = useMinerStore();
     const { theme } = useTheme();
     const cpuPool = pools['cpu'];
     const navigate = useNavigate();
+    const [estimatedHashrate, setEstimatedHashrate] = useState<number>(0);
+    const [lastBenchmarkDate, setLastBenchmarkDate] = useState<Date | null>(null);
+    
+    // Load latest benchmark from Supabase on mount and when deviceType changes
+    useEffect(() => {
+        const fetchLatestBenchmark = async () => {
+            try {
+                const result = await window.electron.invoke('get-latest-benchmark', deviceType);
+                if (result?.avg_hashrate) {
+                    setEstimatedHashrate(result.avg_hashrate);
+                    if (result.created_at) {
+                        setLastBenchmarkDate(new Date(result.created_at));
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load benchmark from DB:', e);
+            }
+        };
+        fetchLatestBenchmark();
+    }, [deviceType]);
 
     const MIN_CLAIM_AMOUNT = 100;
     const canClaim = totalRewards >= MIN_CLAIM_AMOUNT;
@@ -149,7 +170,12 @@ const Dashboard = () => {
                                                 : 'bg-gradient-to-br from-emerald-500/10 to-transparent'
                                         )} />
                     <h3 className={cn("text-sm font-medium uppercase tracking-wider", theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>Estimated Hashrate</h3>
-                    <p className={cn("text-3xl font-mono mt-2", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{formatHashrate(0)} <span className={cn("text-lg", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>H/s</span></p>
+                    <p className={cn("text-3xl font-mono mt-2", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{formatHashrate(estimatedHashrate)} <span className={cn("text-lg", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>H/s</span></p>
+                    {lastBenchmarkDate && (
+                        <p className={cn("text-xs mt-1 font-mono", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>
+                            {deviceType.toUpperCase()} · Last benchmark: {lastBenchmarkDate.toLocaleDateString()}
+                        </p>
+                    )}
                 </div>
                 
                                 <div className={cn("rounded-xl border p-6 relative overflow-hidden group transition-colors",
@@ -306,6 +332,7 @@ const App: React.FC = () => {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/benchmark" element={<BenchmarkPage />} />
                       <Route path="/mining" element={<MiningPage />} />
+                      <Route path="/statistics" element={<MiningStatistics />} />
                       <Route path="/logs" element={<Logs />} />
                       <Route path="/settings" element={<Settings />} />
                   </Routes>

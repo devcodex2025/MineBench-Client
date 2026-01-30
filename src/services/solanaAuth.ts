@@ -1,0 +1,376 @@
+/**
+ * Solana Authentication Context & Store
+ * Управління користувацькою аутентифікацією через Solana гаманець
+ */
+
+import { create } from 'zustand';
+import { PublicKey } from '@solana/web3.js';
+
+export interface SolanaUser {
+  publicKey: string;
+  displayName?: string;
+  avatar?: string;
+  createdAt: number;
+  walletType: 'phantom' | 'magic-eden' | 'ledger' | 'browser' | 'unknown';
+  isVerified: boolean;
+}
+
+export interface MiningDevice {
+  id: string; // unique device ID
+  name: string;
+  publicKey: string;
+  deviceType: 'cpu' | 'gpu';
+  totalHashrate: number;
+  lastSeen: number;
+  isActive: boolean;
+  totalRewards: number;
+}
+
+export interface UserMiningStats {
+  totalRewards: number; // all time
+  thisMonth: number;
+  thisWeek: number;
+  today: number;
+  devices: MiningDevice[];
+  poolBalance: number; // XMR in pool
+  totalBlocks: number; // blocks found
+}
+
+interface SolanaAuthState {
+  // User info
+  user: SolanaUser | null;
+  isConnected: boolean;
+  isConnecting: boolean;
+  
+  // Mining stats
+  miningStats: UserMiningStats | null;
+  statsLoading: boolean;
+  
+  // Multi-device
+  devices: MiningDevice[];
+  
+  // Actions
+  setUser: (user: SolanaUser | null) => void;
+  setConnecting: (loading: boolean) => void;
+  setMiningStats: (stats: UserMiningStats) => void;
+  addDevice: (device: MiningDevice) => void;
+  updateDevice: (id: string, updates: Partial<MiningDevice>) => void;
+  removeDevice: (id: string) => void;
+  
+  // Logout
+  disconnect: () => void;
+}
+
+export const useSolanaAuth = create<SolanaAuthState>((set) => ({
+  user: null,
+  isConnected: false,
+  isConnecting: false,
+  miningStats: null,
+  statsLoading: false,
+  devices: [],
+
+  setUser: (user) =>
+    set({
+      user,
+      isConnected: !!user,
+      isConnecting: false
+    }),
+
+  setConnecting: (isConnecting) => set({ isConnecting }),
+
+  setMiningStats: (miningStats) =>
+    set({
+      miningStats,
+      statsLoading: false
+    }),
+
+  addDevice: (device) =>
+    set((state) => ({
+      devices: [...state.devices, device]
+    })),
+
+  updateDevice: (id, updates) =>
+    set((state) => ({
+      devices: state.devices.map((d) =>
+        d.id === id ? { ...d, ...updates } : d
+      )
+    })),
+
+  removeDevice: (id) =>
+    set((state) => ({
+      devices: state.devices.filter((d) => d.id !== id)
+    })),
+
+  disconnect: () =>
+    set({
+      user: null,
+      isConnected: false,
+      miningStats: null,
+      devices: []
+    })
+}));
+
+/**
+ * Сервіс для роботи із Solana гаманцем
+ */
+export class SolanaAuthService {
+  private static instance: SolanaAuthService;
+
+  private constructor() {}
+
+  static getInstance(): SolanaAuthService {
+    if (!SolanaAuthService.instance) {
+      SolanaAuthService.instance = new SolanaAuthService();
+    }
+    return SolanaAuthService.instance;
+  }
+
+  /**
+   * Підключити Solana гаманець через системний браузер (для Electron) або напряму (для web)
+   */
+  async connectWallet(): Promise<SolanaUser> {
+    try {
+      useSolanaAuth.getState().setConnecting(true);
+
+      console.log('[SolanaAuth] Starting wallet connection...');
+      console.log('[SolanaAuth] window.electron exists:', !!window.electron);
+      console.log('[SolanaAuth] window.electron.ipcRenderer exists:', !!window.electron?.ipcRenderer);
+
+      // Для Electron - використовуємо IPC для відкриття браузера
+      // @ts-ignore - Electron IPC
+      if (window.electron?.ipcRenderer) {
+        console.log('[SolanaAuth] Using Electron IPC flow');
+        const result = await window.electron.ipcRenderer.invoke('solana-connect-wallet');
+        
+        console.log('[SolanaAuth] Received result from IPC:', result);
+        
+        if (!result.publicKey || !result.signature) {
+          throw new Error('Invalid authentication response from browser');
+        }
+
+        const user: SolanaUser = {
+          publicKey: result.publicKey,
+          displayName: result.publicKey.slice(0, 8) + '...',
+          createdAt: Date.now(),
+          walletType: 'browser',
+          isVerified: true
+        };
+
+        // Store user
+        useSolanaAuth.getState().setUser(user);
+        localStorage.setItem('minebench_user', JSON.stringify(user));
+        localStorage.setItem('minebench_signature', result.signature);
+
+        console.log('[SolanaAuth] User authenticated successfully');
+        return user;
+      }
+
+      console.log('[SolanaAuth] Using web wallet flow');
+
+      // Для web - використовуємо window.solana напряму
+      // @ts-ignore - Phantom wallet injection
+      const wallet = window.solana || window.phantom?.solana;
+
+      if (!wallet) {
+        throw new Error('Phantom wallet not installed. Please install from https://phantom.app');
+      }
+
+      // Connect
+      await wallet.connect();
+      const publicKey = wallet.publicKey.toString();
+
+      const user: SolanaUser = {
+        publicKey,
+        displayName: publicKey.slice(0, 8) + '...',
+        createdAt: Date.now(),
+        walletType: this.detectWalletType(wallet),
+        isVerified: false
+      };
+
+      // Store user
+      useSolanaAuth.getState().setUser(user);
+
+      // Save to localStorage
+      localStorage.setItem('minebench_user', JSON.stringify(user));
+
+      return user;
+    } catch (err) {
+      useSolanaAuth.getState().setConnecting(false);
+      throw new Error(`Failed to connect wallet: ${err}`);
+    }
+  }
+
+  /**
+   * Відключити гаманець
+   */
+  async disconnectWallet(): Promise<void> {
+    try {
+      // Для Electron - викликаємо IPC
+      // @ts-ignore
+      if (window.electron?.ipcRenderer) {
+        await window.electron.ipcRenderer.invoke('solana-disconnect-wallet');
+      } else {
+        // Для web - відключаємо напряму
+        // @ts-ignore
+        const wallet = window.solana || window.phantom?.solana;
+        if (wallet?.disconnect) {
+          await wallet.disconnect();
+        }
+      }
+
+      useSolanaAuth.getState().disconnect();
+      localStorage.removeItem('minebench_user');
+      localStorage.removeItem('minebench_signature');
+    } catch (err) {
+      console.error('Failed to disconnect wallet:', err);
+    }
+  }
+
+  /**
+   * Повідомити гаманець про підключення пристрою
+   */
+  async registerDevice(device: MiningDevice): Promise<void> {
+    const user = useSolanaAuth.getState().user;
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // @ts-ignore
+      const wallet = window.solana || window.phantom?.solana;
+
+      // Підписати повідомлення про пристрій
+      const message = new TextEncoder().encode(
+        JSON.stringify({
+          action: 'register_device',
+          deviceId: device.id,
+          deviceName: device.name,
+          timestamp: Date.now()
+        })
+      );
+
+      const signature = await wallet.signMessage(message);
+
+      // Збереження пристрою в store
+      useSolanaAuth.getState().addDevice(device);
+
+      // Синхронізувати з серверомз (якщо існує)
+      await this.syncDeviceWithServer(user.publicKey, device, signature);
+
+      console.log(`[SolanaAuth] Device registered: ${device.name}`);
+    } catch (err) {
+      console.error('Failed to register device:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Отримати статистику майнінгу користувача
+   */
+  async fetchMiningStats(publicKey: string): Promise<UserMiningStats> {
+    try {
+      useSolanaAuth.getState().setMiningStats({
+        totalRewards: 0,
+        thisMonth: 0,
+        thisWeek: 0,
+        today: 0,
+        devices: useSolanaAuth.getState().devices,
+        poolBalance: 0,
+        totalBlocks: 0
+      });
+
+      // TODO: Інтегрувати з реальним API для отримання статистики
+      // На разі повертаємо пусті дані
+
+      const stats: UserMiningStats = {
+        totalRewards: 0,
+        thisMonth: 0,
+        thisWeek: 0,
+        today: 0,
+        devices: useSolanaAuth.getState().devices,
+        poolBalance: 0,
+        totalBlocks: 0
+      };
+
+      useSolanaAuth.getState().setMiningStats(stats);
+      return stats;
+    } catch (err) {
+      console.error('[SolanaAuth] Failed to fetch mining stats:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Перевірити чи гаманець все ще підключений
+   */
+  async verifyConnection(): Promise<boolean> {
+    try {
+      // Для Electron flow - перевіряємо наявність збереженого user та signature
+      // @ts-ignore
+      if (window.electron?.ipcRenderer) {
+        const storedUser = localStorage.getItem('minebench_user');
+        const storedSignature = localStorage.getItem('minebench_signature');
+        return !!(storedUser && storedSignature);
+      }
+
+      // Для web flow - перевіряємо підключення через window.solana
+      // @ts-ignore
+      const wallet = window.solana || window.phantom?.solana;
+      return wallet && wallet.isConnected;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Завантажити користувача з localStorage
+   */
+  loadUserFromStorage(): SolanaUser | null {
+    try {
+      const stored = localStorage.getItem('minebench_user');
+      if (stored) {
+        const user = JSON.parse(stored) as SolanaUser;
+        useSolanaAuth.getState().setUser(user);
+        return user;
+      }
+    } catch (err) {
+      console.error('Failed to load user from storage:', err);
+    }
+    return null;
+  }
+
+  /**
+   * Приватний метод для визначення типу гаманця
+   */
+  private detectWalletType(
+    wallet: any
+  ): 'phantom' | 'magic-eden' | 'ledger' | 'unknown' {
+    if (wallet.isPhantom) return 'phantom';
+    if (wallet.isMagicEden) return 'magic-eden';
+    if (wallet.isLedger) return 'ledger';
+    return 'unknown';
+  }
+
+  /**
+   * Приватний метод для синхронізації пристрою з серверомз
+   */
+  private async syncDeviceWithServer(
+    publicKey: string,
+    device: MiningDevice,
+    signature: any
+  ): Promise<void> {
+    try {
+      // TODO: Надіслати на backend для верифікації та зберігання
+      // POST /api/devices/register
+      // {
+      //   publicKey,
+      //   device,
+      //   signature
+      // }
+      console.log('[SolanaAuth] Syncing device with server (TODO)');
+    } catch (err) {
+      console.error('Failed to sync device with server:', err);
+      // Non-fatal error - device still works locally
+    }
+  }
+}

@@ -1,0 +1,202 @@
+```
+MineBench Client - Documentation Map
+=====================================
+
+📋 ДОКУМЕНТИ ЩО БУЛО СТВОРЕНО:
+
+┌─ ШВИДКИЙ СТАРТ ─────────────────────────────────────┐
+│                                                      │
+│ 🚀 QUICK_BUILD_WINDOWS.md                           │
+│    └─ Одна команда: npm run dist:win                │
+│    └─ Найпопулярніший документ для вас!             │
+│                                                      │
+│ 🎯 CHEATSHEET.md                                    │
+│    └─ Команди на одній сторінці                     │
+│    └─ Шпаргалка                                     │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+
+┌─ ДЕТАЛЬНЕ БУДУВАННЯ ─────────────────────────────────┐
+│                                                       │
+│ 🔨 BUILD_WINDOWS_PRODUCTION.md                       │
+│    └─ Детальна інструкція для Windows                │
+│    └─ Крок за кроком                                 │
+│                                                       │
+│ 🔨 BUILD_ALL_PLATFORMS.md                            │
+│    └─ Windows + macOS + Linux                        │
+│    └─ Матриця команд                                 │
+│                                                       │
+│ ✅ WINDOWS_BUILD_CHECKLIST.md                        │
+│    └─ Чек-лист перевірок                             │
+│    └─ Перед и після будування                        │
+│                                                       │
+└─────────────────────────────────────────────────────┘
+
+┌─ КОНФІГУРАЦІЯ ───────────────────────────────────────┐
+│                                                      │
+│ ⚙️  ENVIRONMENT_CONFIG.md                            │
+│    └─ Повний гайд конфігурації                       │
+│    └─ Як додавати нові змінні                        │
+│                                                      │
+│ ⚙️  QUICK_START_ENVIRONMENT.md                       │
+│    └─ Швидкий старт конфіг                           │
+│    └─ Основне                                        │
+│                                                      │
+│ ⚙️  ENVIRONMENT_SETUP_SUMMARY.md                     │
+│    └─ Резюме імплементації                           │
+│    └─ Що було зроблено                               │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+
+┌─ ІНФОРМАЦІЯ ──────────────────────────────────────────┐
+│                                                       │
+│ 📚 DOCS_INDEX.md                                     │
+│    └─ Індекс всіх документів                          │
+│    └─ Вибирай що тобі потрібно                        │
+│                                                       │
+│ 📖 FINAL_SUMMARY.md                                  │
+│    └─ Комплексне резюме                              │
+│    └─ Все на одній сторінці                          │
+│                                                       │
+│ 📖 IMPLEMENTATION_COMPLETE.md                        │
+│    └─ Що було реалізовано                            │
+│    └─ Тестування результати                          │
+│                                                       │
+└─────────────────────────────────────────────────────┘
+
+┌─ СКРИПТИ ────────────────────────────────────────────┐
+│                                                     │
+│ 🪟 build-windows-production.bat                     │
+│    └─ Для Windows CMD                               │
+│    └─ Автоматизує весь процес                       │
+│                                                     │
+│ 🔵 build-windows-production.ps1                     │
+│    └─ Для Windows PowerShell                        │
+│    └─ З кольоровим виводом                          │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+
+┌─ ОСНОВНІ ФАЙЛИ (КОДЕКС) ──────────────────────────────┐
+│                                                       │
+│ src/config/environment.ts       - Центральна конфіг  │
+│ src/hooks/useEnvironment.ts     - React hooks        │
+│ src/components/DeveloperSettings.tsx - Settings UI   │
+│                                                       │
+│ .env.development                - Development URLs    │
+│ .env.production                 - Production URLs     │
+│                                                       │
+│ vite.config.ts                  - Vite конфіг        │
+│ package.json                    - npm scripts         │
+│                                                       │
+└─────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════
+
+🎯 ВИБЕРИТЕСь ЗА СВОЄЮ ПОТРЕБОЮ:
+
+┌─ НАЙПОПУЛЯРНІШЕ ────────────────────┐
+│ "Хочу побудувати Windows прямо        │
+│  зараз з production auth"             │
+│                                       │
+│ → QUICK_BUILD_WINDOWS.md              │
+│ → npm run dist:win                    │
+│ → Готово за 10-15 хвилин! ✅         │
+└─────────────────────────────────────┘
+
+┌─ ДЕТАЛЯМИ ──────────────────────────┐
+│ "Хочу розібратися детальніше"       │
+│                                     │
+│ → BUILD_WINDOWS_PRODUCTION.md        │
+│ → ENVIRONMENT_CONFIG.md              │
+│ → Все пояснено крок за кроком        │
+└─────────────────────────────────────┘
+
+┌─ УСІМ ПЛАТФОРМАМ ───────────────────┐
+│ "Потрібна Windows/Mac/Linux"        │
+│                                     │
+│ → BUILD_ALL_PLATFORMS.md             │
+│ → Матриця для всіх ОС               │
+└─────────────────────────────────────┘
+
+┌─ ДОВІДКА ───────────────────────────┐
+│ "Потрібна команда"                  │
+│                                     │
+│ → CHEATSHEET.md                      │
+│ → Шпаргалка на одній сторінці       │
+└─────────────────────────────────────┘
+
+┌─ ІНДЕКС ────────────────────────────┐
+│ "Не знаю з чого почати"             │
+│                                     │
+│ → DOCS_INDEX.md                      │
+│ → Повний індекс документів           │
+└─────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════
+
+📊 СТРУКТУРА:
+
+Development (localhost):
+  Wallet Auth: http://localhost:3000/auth
+  API Base:    http://localhost:3000/api
+  Solana RPC:  https://api.devnet.solana.com (DevNet)
+
+            ↓↓↓ npm run dist:win ↓↓↓
+
+Production (minebench.cloud):
+  Wallet Auth: https://minebench.cloud/auth ✅
+  API Base:    https://minebench.cloud/api ✅
+  Solana RPC:  https://api.mainnet-beta.solana.com ✅
+
+            ↓↓↓ Result ↓↓↓
+
+  dist/MineBench Client 0.4.4.exe
+  (~150-200 MB, готов до розповсюдження)
+
+
+═══════════════════════════════════════════════════════
+
+🚀 КОМАНДИ:
+
+npm run dev:local       # Development з localhost
+npm run dev:prod        # Development з minebench.cloud
+npm run build:dev       # Build для development
+npm run build:prod      # Build для production
+npm run dist:win        # Windows installer ← ОСНОВНЕ!
+npm run dist:mac        # macOS installer
+npm run dist:linux      # Linux пакети
+npm run dist:all        # Всі платформи
+
+
+═══════════════════════════════════════════════════════
+
+✨ ОСОБЛИВОСТІ:
+
+✅ Без Hardcoding URLs
+✅ Миттєве Переключення
+✅ Візуальна Зворотна Зв'язок (⚙️ panel)
+✅ Type-Safe (TypeScript)
+✅ Production Ready
+✅ Легко Розширювати
+
+
+═══════════════════════════════════════════════════════
+
+🎉 ГОТОВО!
+
+Все реалізовано, протестовано, задокументовано.
+
+Почніть з:
+  npm run dist:win
+
+І чекайте ~10-15 хвилин.
+Installer буде у dist/ папці.
+
+═══════════════════════════════════════════════════════
+```
+
+Created: January 29, 2026
+Status: ✅ Production Ready
+Version: 0.4.4

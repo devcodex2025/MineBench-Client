@@ -12,11 +12,14 @@ Cross-platform desktop mining client built with Electron, React, and Three.js. M
 - **⚡ CPU Mining**: Powered by XMRig 6.25.0
 - **🎨 Modern UI**: Custom window frame, dark theme, React + Tailwind CSS
 - **📊 Real-time Stats**: Live hashrate, temperature, rewards tracking
+- **🔐 Solana Wallet**: Browser-based authentication with Phantom/Solflare
+- **🌐 Multi-Device**: Sync mining stats across multiple computers
+- **💰 Reward Tracking**: View earnings per device and total
 - **🌐 Multi-Node**: Monero RPC and P2Pool integration
 - **🎮 3D Visualization**: Interactive reactor core with Three.js
 - **⚙️ Thread Control**: Adjust CPU usage with slider
 - **📈 Benchmarking**: Performance testing modes
-- **🔒 Secure**: Local wallet management, encrypted sessions
+- **🔒 Secure**: Cryptographic signatures, encrypted sessions
 
 ## 📥 Installation
 
@@ -67,12 +70,48 @@ MineBench Client now includes native Wayland support for modern Linux distributi
 # Install dependencies
 npm install
 
-# Development mode
-npm run dev:all
+# Development mode (local URLs - localhost:3000)
+npm run dev:local
+
+# Development mode (production URLs - minebench.cloud)
+npm run dev:prod
+
+# Build for development
+npm run build:dev
 
 # Build for production
-npm run dist
+npm run build:prod
+
+# Build distributables for Windows
+npm run dist:win
+
+# Build distributables for macOS
+npm run dist:mac
+
+# Build distributables for Linux
+npm run dist:linux
+
+# Build for all platforms
+npm run dist:all
 ```
+
+### Quick Windows Production Build
+
+To build a production Windows installer with minebench.cloud authentication:
+
+```bash
+npm run dist:win
+```
+
+This automatically:
+- ✅ Sets environment to production
+- ✅ Loads minebench.cloud URLs
+- ✅ Builds web assets
+- ✅ Creates Windows installer (`.exe`)
+
+**Result:** `dist/MineBench Client 0.4.4.exe` (~150-200 MB)
+
+For detailed instructions, see [QUICK_BUILD_WINDOWS.md](QUICK_BUILD_WINDOWS.md)
 
 ## 🛠️ Tech Stack
 
@@ -86,6 +125,30 @@ npm run dist
 
 ## ⚙️ Configuration
 
+### Environment Configuration
+
+MineBench Client supports multiple environment configurations for seamless development and production switching.
+
+**Quick Start:**
+```bash
+# Local development (localhost)
+npm run dev:local
+
+# Test with production URLs
+npm run dev:prod
+
+# Build for production
+npm run build:prod
+```
+
+**Environment URLs:**
+- **Development**: `http://localhost:3000/auth` (wallet), `http://localhost:3000/api` (API)
+- **Production**: `https://minebench.cloud/auth` (wallet), `https://minebench.cloud/api` (API)
+
+For detailed configuration guide, see [ENVIRONMENT_CONFIG.md](ENVIRONMENT_CONFIG.md).
+
+### Mining Configuration
+
 Create `.env` file:
 ```env
 # RPC endpoint (monerod)
@@ -98,14 +161,40 @@ MB_POOL_URL=xmr.minebench.cloud:30832
 
 ## 📖 Usage
 
+### Quick Start
+
 1. **Launch Application**: Open MineBench Client
-2. **Wait for Node Sync**: Dashboard shows sync progress
-3. **Configure Mining**: 
+2. **Connect Solana Wallet** (Optional but recommended):
+   - Click "Connect Solana Wallet" button in sidebar
+   - Your system browser will open
+   - Select Phantom, Solflare, or Magic Eden wallet
+   - Approve connection and sign authentication message
+   - Browser closes automatically, you're connected!
+   - See [BROWSER_WALLET_QUICKSTART.md](BROWSER_WALLET_QUICKSTART.md)
+3. **Wait for Node Sync**: Dashboard shows sync progress
+4. **Configure Mining**: 
    - Go to "Mining Mode"
    - Adjust thread count with slider
    - Click "Start Mining"
-4. **Monitor**: View real-time stats and logs
-5. **Claim Rewards**: Accumulate 100+ $BMT to claim
+5. **View Statistics**: 
+   - Navigate to "Statistics" tab to see:
+     - Total rewards across all devices
+     - Individual device performance
+     - 7-day reward history chart
+     - Real-time hashrate graphs
+6. **Monitor**: View real-time stats and logs
+7. **Multi-Device**: Install on multiple computers, connect same wallet to sync stats
+
+### Solana Wallet Benefits
+
+When you connect a Solana wallet:
+- ✅ Track mining across multiple devices
+- ✅ View aggregated statistics
+- ✅ Receive rewards to your Solana address (future)
+- ✅ Participate in governance (future)
+- ✅ Access exclusive features
+
+**No wallet?** You can still mine, but statistics won't sync between devices.
 
 ## 🔧 Development
 

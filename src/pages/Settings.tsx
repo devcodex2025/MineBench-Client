@@ -1,10 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
+import { useMinerStore } from '../store/useMinerStore';
+import { useEnvironment } from '../hooks/useEnvironment';
 
-const APP_VERSION = '0.4.1';
-const LATEST_VERSION = '0.4.1';
+// Version from build-time define
+declare const __APP_VERSION__: string;
+const APP_VERSION = __APP_VERSION__ || '0.4.6';
+const LATEST_VERSION = '0.4.6';
 
 export const Settings = () => {
   const { theme, toggleTheme } = useTheme();
@@ -123,7 +127,6 @@ export const Settings = () => {
         </div>
 
         <div className="space-y-3 ml-8">
-          {/* Update Status */}
           <div className={cn("flex items-center justify-between p-3 rounded border",
             theme === 'light'
               ? 'bg-zinc-100 border-zinc-300'
@@ -142,7 +145,6 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* Check Updates Button */}
           <button
             onClick={handleCheckUpdates}
             disabled={checkingUpdates}
@@ -156,7 +158,6 @@ export const Settings = () => {
             {checkingUpdates ? 'Checking...' : 'Check for Updates'}
           </button>
 
-          {/* Update Checked Message */}
           {updateChecked && !checkingUpdates && (
             <div className={cn("flex items-center gap-2 p-3 rounded border text-sm",
               theme === 'light'
@@ -168,7 +169,6 @@ export const Settings = () => {
             </div>
           )}
 
-          {/* Download Update Button */}
           {updateAvailable && (
             <button
               onClick={handleDownloadUpdate}
@@ -249,6 +249,21 @@ export const Settings = () => {
         </div>
       </div>
 
+      {/* Mining Configuration */}
+      {false && (
+        <div className={cardClass}>
+          <div className="flex items-start gap-3 mb-4">
+            <SettingsIcon size={20} className="text-yellow-400 mt-1 flex-shrink-0" />
+            <div className="flex-1">
+              <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Mining Configuration</h2>
+              <p className={cn("mt-1", textClass)}>Set your wallet and preferred pool</p>
+            </div>
+          </div>
+
+          <MiningConfigForm theme={theme} />
+        </div>
+      )}
+
       {/* About Section */}
       <div className={cardClass}>
         <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>About MineBench</h2>
@@ -264,6 +279,143 @@ export const Settings = () => {
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Platform Support:</span> Windows, macOS, Linux (with Wayland support)</p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Simple Monero wallet validation: starts with 4 or 8 and ~95 characters
+const validateXmrWallet = (addr: string) => {
+  const trimmed = addr.trim();
+  if (!trimmed) return { ok: false, reason: 'Wallet is required' };
+  if (!(trimmed.startsWith('4') || trimmed.startsWith('8'))) return { ok: false, reason: 'Must start with 4 or 8' };
+  if (trimmed.length < 90 || trimmed.length > 110) return { ok: false, reason: 'Unexpected length' };
+  return { ok: true };
+};
+
+const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
+  const env = useEnvironment();
+  const wallet = useMinerStore((s) => s.wallet);
+  const poolUrl = useMinerStore((s) => s.poolUrl);
+  const donateLevel = useMinerStore((s) => s.donateLevel);
+  const setWallet = useMinerStore((s) => s.setWallet);
+  const setPoolUrl = useMinerStore((s) => s.setPoolUrl);
+  const setDonateLevel = useMinerStore((s) => s.setDonateLevel);
+
+  const [localWallet, setLocalWallet] = useState(wallet);
+  const [localPool, setLocalPool] = useState(poolUrl);
+  const [localDonate, setLocalDonate] = useState(donateLevel);
+  const [saving, setSaving] = useState(false);
+  const validation = useMemo(() => validateXmrWallet(localWallet), [localWallet]);
+
+  // Local label style (fix: avoid referencing outer component variables)
+  const labelClass = cn(
+    'text-xs font-bold uppercase tracking-widest',
+    theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+  );
+
+  const presetPools = [
+    { name: 'HashVault', url: 'pool.hashvault.pro:3333' },
+    { name: 'SupportXMR', url: 'pool.supportxmr.com:3333' },
+    { name: 'MoneroOcean', url: 'gulf.moneroocean.stream:10032' },
+    { name: 'MineBench Cloud (Production)', url: env.poolStratumUrl },
+  ];
+
+  const save = async () => {
+    if (!validation.ok) return;
+    setSaving(true);
+    try {
+      setWallet(localWallet.trim());
+      setPoolUrl(localPool.trim());
+      setDonateLevel(Math.max(0, Math.min(5, Math.round(localDonate))));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 ml-8">
+      {/* Wallet */}
+      <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
+        <label className={labelClass}>Wallet Address (XMR)</label>
+        <input
+          value={localWallet}
+          onChange={(e) => setLocalWallet(e.target.value)}
+          placeholder="Enter your Monero wallet"
+          className={cn(
+            'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
+            theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
+          )}
+        />
+        {!validation.ok && (
+          <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-red-600' : 'text-red-400')}>{validation.reason}</div>
+        )}
+      </div>
+
+      {/* Pool Selection */}
+      <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
+        <label className={labelClass}>Mining Pool</label>
+        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+          {presetPools.map((p) => (
+            <button
+              key={p.url}
+              onClick={() => setLocalPool(p.url)}
+              className={cn(
+                'px-3 py-2 rounded border text-sm text-left',
+                localPool === p.url
+                  ? theme === 'light' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : theme === 'light' ? 'bg-white border-zinc-300 text-zinc-800' : 'bg-zinc-900 border-white/10 text-white'
+              )}
+            >
+              <div className="font-medium">{p.name}</div>
+              <div className="text-xs opacity-70">{p.url}</div>
+            </button>
+          ))}
+        </div>
+        <input
+          value={localPool}
+          onChange={(e) => setLocalPool(e.target.value)}
+          placeholder="host:port (e.g., pool.hashvault.pro:3333)"
+          className={cn(
+            'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
+            theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
+          )}
+        />
+        <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Protocol will be set automatically to `stratum+tcp://`.</div>
+      </div>
+
+      {/* Donate Level */}
+      {false && (
+        <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
+          <label className={labelClass}>Donate Level</label>
+          <input
+            type="number"
+            min={0}
+            max={5}
+            value={localDonate}
+            onChange={(e) => setLocalDonate(Number(e.target.value))}
+            className={cn(
+              'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
+              theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
+            )}
+          />
+          <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Xmrig default is 1%. Set 0 to disable.</div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={save}
+          disabled={saving || !validation.ok}
+          className={cn(
+            'px-4 py-2 rounded border text-sm font-semibold',
+            saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+            theme === 'light' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-500 text-black border-emerald-500'
+          )}
+        >
+          Save Configuration
+        </button>
+        <div className={cn('text-xs self-center', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Changes apply on next start.</div>
       </div>
     </div>
   );
