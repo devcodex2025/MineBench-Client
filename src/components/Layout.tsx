@@ -1,9 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Activity, Hammer, Settings, BarChart3, Terminal, type LucideIcon } from 'lucide-react';
+import { Activity, Hammer, Settings, BarChart3, Terminal, TrendingUp, type LucideIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMinerStore } from '../store/useMinerStore';
+import { useIsDevelopment } from '../hooks/useEnvironment';
+import { SolanaAuthButton } from './SolanaAuthButton';
+import { DeveloperSettings } from './DeveloperSettings';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme } = useTheme();
@@ -26,7 +29,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
            <div className="flex items-center gap-3 px-2 mt-2">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="/minebench-logo-yellow.png" alt="MineBench Logo" className="w-full h-full object-contain" />
+                {/* Use relative path so it works with file:// protocol in packaged app */}
+                <img src="minebench-logo-yellow.png" alt="MineBench Logo" className="w-full h-full object-contain" />
                 </div>
                 <div>
                     <h1 className="font-bold text-lg tracking-tight">MineBench</h1>
@@ -37,6 +41,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               <NavItem to="/" icon={BarChart3} label="Dashboard" />
               <NavItem to="/benchmark" icon={Activity} label="Benchmarks" />
               <NavItem to="/mining" icon={Hammer} label="Mining Mode" />
+              <NavItem to="/statistics" icon={TrendingUp} label="Statistics" />
               <NavItem to="/logs" icon={Terminal} label="Node Logs" />
            </nav>
 
@@ -93,6 +98,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         <div className="pt-4 space-y-3">
+             {/* Solana Wallet */}
+             <SolanaAuthButton />
+
              {/* Mini Stats Card */}
             <div className={cn("p-3 rounded-lg border",
               theme === 'light'
@@ -147,6 +155,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
          <div className="flex-1 overflow-y-auto p-6 z-10 custom-scrollbar">
             {children}
          </div>
+
+         {/* Developer Settings - only in development mode */}
+         {useIsDevelopment() && <DeveloperSettings />}
       </main>
     </div>
   );
@@ -156,17 +167,35 @@ const NavItem = ({ to, icon: Icon, label }: { to: string, icon: LucideIcon, labe
   const { theme } = useTheme();
   return (
     <NavLink 
-      to={to} 
+      to={to}
+      onClick={(e) => {
+        const { status } = useMinerStore.getState();
+        const isMining = status === 'running' || status === 'starting' || status === 'paused';
+        if (isMining) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
       className={({ isActive }) => cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 group cursor-pointer",
+          "flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 group",
           isActive 
               ? theme === 'light'
                 ? "bg-zinc-200 text-zinc-900 border border-zinc-300"
                 : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
               : theme === 'light'
               ? "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200"
-              : "text-zinc-400 hover:text-zinc-100 hover:bg-white/5"
+              : "text-zinc-400 hover:text-zinc-100 hover:bg-white/5",
+          (() => {
+            const { status } = useMinerStore.getState();
+            const isMining = status === 'running' || status === 'starting' || status === 'paused';
+            return isMining ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer";
+          })()
       )}
+      title={(() => {
+        const { status } = useMinerStore.getState();
+        const isMining = status === 'running' || status === 'starting' || status === 'paused';
+        return isMining ? "Navigation disabled while mining" : "";
+      })()}
     >
       <Icon size={18} className="opacity-70 group-hover:opacity-100" />
       <span className="text-sm font-medium">{label}</span>

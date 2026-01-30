@@ -1,12 +1,13 @@
 const fs = require("fs");
 const { spawn } = require("child_process");
 const path = require("path");
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const si = require('systeminformation');
 const { createClient } = require('@supabase/supabase-js');
 const { randomUUID } = require('crypto');
 const deviceIdFile = path.join(app.getPath('userData'), 'device_id.txt');
 const os = require('os');
+const http = require('http');
 
 // === Display Status Tracking for Linux ===
 let displayStatus = {
@@ -33,6 +34,92 @@ if (displayStatus.isLinux) {
   }
 }
 // === End Display Status Tracking ===
+
+// === Solana OAuth Server for Browser-based Wallet Connection ===
+let oauthServer = null;
+let oauthCallback = null;
+
+function startOAuthServer() {
+  return new Promise((resolve, reject) => {
+    // Find available port
+    const server = http.createServer((req, res) => {
+      if (req.url.startsWith('/callback')) {
+        const url = new URL(req.url, `http://localhost`);
+        const publicKey = url.searchParams.get('publicKey');
+        const signature = url.searchParams.get('signature');
+        
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>MineBench — Wallet Connected</title>
+            <style>
+              body { background: #0a0a0a; color: #e5e7eb; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+              .card { background: #0b0b0b; border: 2px solid #facc15; padding: 2rem; border-radius: 8px; text-align: center; max-width: 500px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+              h1 { color: #facc15; margin: 0 0 1.5rem; font-size: 1.875rem; line-height: 2.25rem; }
+              p { color: #d4d4d8; font-size: 1.125rem; line-height: 1.75rem; margin-bottom: 0.5rem; }
+              .sub { color: #71717a; font-size: 0.875rem; margin-top: 1.5rem; }
+              .icon { color: #facc15; width: 48px; height: 48px; margin-bottom: 1rem; display: inline-block; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h1>Wallet Connected</h1>
+              <p>You have successfully authenticated.</p>
+              <p id="msg">Closing in <span id="timer">3</span>s...</p>
+              <div class="sub">Return to the MineBench application to continue.</div>
+            </div>
+            <script>
+                // Auto-close logic
+                let seconds = 3;
+                const timerInfo = document.getElementById('timer');
+                const msgInfo = document.getElementById('msg');
+                const interval = setInterval(() => {
+                  seconds--;
+                  timerInfo.innerText = seconds;
+                  if (seconds <= 0) {
+                    clearInterval(interval);
+                    try { window.close(); } catch(e) {}
+                    msgInfo.innerText = "You can close this window now.";
+                  }
+                }, 1000);
+            </script>
+          </body>
+          </html>
+        `);
+        
+        if (oauthCallback) {
+          oauthCallback({ publicKey, signature });
+        }
+        
+        // Close server after handling callback
+        setTimeout(() => {
+          server.close();
+          oauthServer = null;
+        }, 1000);
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    });
+    
+    // Listen on random available port
+    server.listen(0, 'localhost', () => {
+      const port = server.address().port;
+      oauthServer = { server, port };
+      resolve(port);
+    });
+    
+    server.on('error', reject);
+  });
+}
+// === End Solana OAuth Server ===
 
 // === Linux Sandbox Support ===
 // Check if user-namespace sandbox is available (Linux only)
@@ -114,6 +201,28 @@ ipcMain.handle('get-cpu-cores', () => {
   return os.cpus().length;
 });
 
+ipcMain.handle('get-system-stats', async () => {
+  try {
+    const cpuUsage = os.loadavg()[0] * 100 / os.cpus().length; // Normalize to percentage
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+
+    return {
+      cpuUsage: Math.min(cpuUsage, 100), // Cap at 100%
+      ramUsage: usedMemory,
+      ramTotal: totalMemory
+    };
+  } catch (err) {
+    console.error('Error reading system stats:', err);
+    return {
+      cpuUsage: 0,
+      ramUsage: 0,
+      ramTotal: os.totalmem()
+    };
+  }
+});
+
 ipcMain.handle("report-stats", async (event, { temp, power }) => {
   if (typeof temp === "number") temps.push(temp);
   if (typeof power === "number") powers.push(power);
@@ -138,12 +247,29 @@ async function sendToDatabase(data) {
   }
 }
 
+// Cache CPU temperature to avoid redundant queries
+let cachedCpuTemp = null;
+let lastCpuTempTime = 0;
+const CPU_TEMP_CACHE_MS = 2000; // Cache for 2 seconds
+
 ipcMain.handle('get-cpu-temp', async () => {
   try {
+    const now = Date.now();
+    
+    // Return cached value if still fresh
+    if (cachedCpuTemp !== null && (now - lastCpuTempTime) < CPU_TEMP_CACHE_MS) {
+      return { success: true, temp: cachedCpuTemp };
+    }
+
     const tempData = await si.cpuTemperature();
     if (tempData.main === null) {
       return { success: false, temp: null, message: 'Cannot read CPU temperature' };
     }
+    
+    // Cache the result
+    cachedCpuTemp = tempData.main;
+    lastCpuTempTime = now;
+    
     return { success: true, temp: tempData.main };
   } catch (err) {
     console.error('Error reading CPU temp:', err);
@@ -203,13 +329,236 @@ ipcMain.handle('set-auto-start', (event, enable) => {
   }
 });
 
+// === Miner Settings Persistence ===
+const settingsFilePath = path.join(app.getPath('userData'), 'miner-settings.json');
+
+ipcMain.handle('save-miner-settings', async (event, settings) => {
+  try {
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+    console.log('✅ Miner settings saved to:', settingsFilePath);
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Failed to save miner settings:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('load-miner-settings', async (event) => {
+  try {
+    if (fs.existsSync(settingsFilePath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'));
+      console.log('✅ Miner settings loaded from:', settingsFilePath);
+      return { success: true, settings };
+    }
+    return { success: false, settings: null };
+  } catch (err) {
+    console.error('❌ Failed to load miner settings:', err);
+    return { success: false, error: err.message, settings: null };
+  }
+});
+
 // Expose display status to renderer
 ipcMain.handle('get-display-status', () => {
   return displayStatus;
 });
 
+// === Solana Wallet IPC Handlers ===
+ipcMain.handle('solana-connect-wallet', async () => {
+  try {
+    console.log('[Solana] Starting wallet connection...');
+    
+    // Start OAuth server
+    const port = await startOAuthServer();
+    console.log('[Solana] OAuth server started on port:', port);
+    
+    // Determine auth URL based on MINEBENCH_MODE or packaged status
+    const mode = process.env.MINEBENCH_MODE || (app.isPackaged ? 'production' : 'development');
+    const baseUrl = mode === 'production' ? 'https://minebench.cloud' : 'http://localhost:3000';
+    const authUrl = `${baseUrl}/wallet-connect?callbackUrl=${encodeURIComponent(`http://localhost:${port}/callback`)}`;
+    console.log('[Solana] Mode:', mode);
+    console.log('[Solana] Opening browser with URL:', authUrl);
+    
+    // Open default browser
+    await shell.openExternal(authUrl);
+    console.log('[Solana] Browser opened, waiting for callback...');
+    
+    // Wait for callback
+    return new Promise((resolve, reject) => {
+      oauthCallback = (data) => {
+        console.log('[Solana] Callback received:', { publicKey: data.publicKey?.slice(0, 8) + '...' });
+        resolve(data);
+        oauthCallback = null;
+      };
+      
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        console.log('[Solana] Authentication timeout');
+        if (oauthServer) {
+          oauthServer.server.close();
+          oauthServer = null;
+        }
+        reject(new Error('Authentication timeout'));
+      }, 5 * 60 * 1000);
+    });
+  } catch (error) {
+    console.error('[Solana] Connect wallet error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('solana-disconnect-wallet', async () => {
+  // Cleanup any OAuth server if running
+  if (oauthServer) {
+    oauthServer.server.close();
+    oauthServer = null;
+  }
+  oauthCallback = null;
+  return { success: true };
+});
+
+// Proxy Solana RPC balance lookup to avoid CORS/rate limits
+ipcMain.handle('solana-get-token-balance', async (event, { owner, mint }) => {
+  try {
+    if (!owner || !mint) throw new Error('owner and mint are required');
+    const endpoints = [
+      process.env.MB_SOL_RPC,
+      'https://api.mainnet-beta.solana.com',
+      'https://rpc.ankr.com/solana'
+    ].filter(Boolean);
+    const TOKEN_PROGRAMS = [
+      'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+    ];
+
+    const post = async (url, body) => {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json?.error) throw new Error(json.error.message || 'RPC error');
+      return json;
+    };
+
+    let total = 0;
+    let found = false;
+
+    // 1) Try direct mint filter first on available endpoints
+    for (const url of endpoints) {
+      try {
+        const body = {
+          jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
+          params: [owner, { mint }, { encoding: 'jsonParsed' }]
+        };
+        const json = await post(url, body);
+        const list = json?.result?.value ?? [];
+        if (list.length > 0) {
+          for (const acc of list) {
+            const amt = acc?.account?.data?.parsed?.info?.tokenAmount;
+            if (amt && typeof amt.uiAmount === 'number') total += amt.uiAmount;
+            else if (amt?.uiAmountString) total += Number(amt.uiAmountString);
+          }
+          found = true;
+          break;
+        }
+      } catch (e) {
+        console.warn('[solana-get-token-balance] mint filter failed on', url, e.message);
+      }
+    }
+
+    // 2) Fallback: query by programId and filter by mint
+    if (!found) {
+      for (const url of endpoints) {
+        for (const programId of TOKEN_PROGRAMS) {
+          try {
+            const body = {
+              jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
+              params: [owner, { programId }, { encoding: 'jsonParsed' }]
+            };
+            const json = await post(url, body);
+            const list = json?.result?.value ?? [];
+            for (const acc of list) {
+              const info = acc?.account?.data?.parsed?.info;
+              if (info?.mint === mint) {
+                const amt = info?.tokenAmount;
+                if (amt && typeof amt.uiAmount === 'number') total += amt.uiAmount;
+                else if (amt?.uiAmountString) total += Number(amt.uiAmountString);
+              }
+            }
+            if (total > 0) { found = true; break; }
+          } catch (e) {
+            console.warn('[solana-get-token-balance] programId failed on', url, e.message);
+          }
+        }
+        if (found) break;
+      }
+    }
+
+    return { success: true, balance: total };
+  } catch (e) {
+    return { success: false, error: e?.message || 'Unknown error' };
+  }
+});
+
+// === P2Pool RPC IPC Handler (to bypass CORS) ===
+ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'xmr.minebench.cloud', port = 30595 }) => {
+  try {
+    return await new Promise((resolve, reject) => {
+      const postData = JSON.stringify({
+        jsonrpc: '2.0',
+        id: '0',
+        method,
+        params
+      });
+
+      const options = {
+        hostname: host,
+        port: port,
+        path: '/json_rpc',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) {
+              reject(new Error(json.error.message || 'RPC Error'));
+            } else {
+              resolve(json.result);
+            }
+          } catch (e) {
+            reject(new Error('Invalid RPC response'));
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        reject(new Error(`P2Pool RPC failed: ${e.message}`));
+      });
+
+      req.write(postData);
+      req.end();
+    });
+  } catch (err) {
+    console.error('[P2PoolRPC]', err.message);
+    return { success: false, error: err.message };
+  }
+});
+// === End P2Pool RPC IPC Handler ===
+
+// === End Solana Wallet IPC Handlers ===
+
 const { exec } = require('child_process');
-const http = require('http');
 
 // Helper to parse sync from docker logs if RPC is hanging
 function getSyncFromLogs(containerName) {
@@ -269,7 +618,10 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
     // Production: MineBench Cloud node deployed on Akash (xmr.minebench.cloud)
     // NOTE: RPC port 18081 is forwarded on Akash; keep this in sync with current lease
     const rpcHost = process.env.MB_RPC_HOST || 'xmr.minebench.cloud';
-    const rpcPort = Number(process.env.MB_RPC_PORT) || 30595;
+    const useInternalRpc = String(process.env.MB_RPC_USE_INTERNAL ?? 'true').toLowerCase() === 'true';
+    const rpcPortExternal = Number(process.env.MB_RPC_PORT) || 18081;
+    const rpcPortInternal = Number(process.env.MB_RPC_PORT_INTERNAL) || 31860;
+    const rpcPort = useInternalRpc ? rpcPortInternal : rpcPortExternal;
 
     const poolConfigs = {
         'cpu': { 
@@ -424,18 +776,53 @@ function log(message) {
 function getAppIcon() {
   const isWindows = process.platform === 'win32';
   const iconFile = isWindows ? 'icon.ico' : 'icon.png';
-  const baseDir = app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
-  return path.join(baseDir, 'build', iconFile);
+  let iconPath = null;
+  
+  if (app.isPackaged) {
+    // In packaged app, try multiple possible locations
+    const possiblePaths = [
+      path.join(app.getAppPath(), '..', 'build', iconFile),
+      path.join(app.getAppPath(), 'build', iconFile),
+      path.join(process.resourcesPath, 'build', iconFile)
+    ];
+    
+    iconPath = possiblePaths.find(p => fs.existsSync(p)) || null;
+    if (!iconPath) {
+      console.warn(`Icon file not found in packaged locations: ${possiblePaths.join(', ')}`);
+      return undefined;
+    }
+  } else {
+    // In development, build folder is at the root
+    iconPath = path.join(__dirname, '..', 'build', iconFile);
+    if (!fs.existsSync(iconPath)) {
+      console.warn(`Icon file not found in development at: ${iconPath}`);
+      return undefined;
+    }
+  }
+  
+  // Return undefined if file doesn't exist to use system default
+  
+  return iconPath;
 }
 
 function createWindow() {
   try {
+    const isWindows = process.platform === 'win32';
     mainWindow = new BrowserWindow({
       width: 1200,
       height: 800,
       minWidth: 1000,
       minHeight: 700,
       frame: false,
+      ...(isWindows
+        ? {
+            titleBarOverlay: {
+              color: '#020408',
+              symbolColor: '#a1a1aa',
+              height: 32
+            }
+          }
+        : {}),
       backgroundColor: '#020408',
       icon: getAppIcon(),
       // Wayland-specific options for better compatibility
@@ -648,11 +1035,14 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, threads 
           poolUrl = `stratum+tcp://${poolUrl}`;
         }
 
+        // New architecture: Pass Solana wallet as username to P2Pool
+        // P2Pool will use it as worker name in payouts_log.txt
+        // wallet parameter is now the Solana address (e.g., ANTgV1KJn5DQ3tSDU8MzwV8tW7DKQBEFoKDqZY7Lrvr)
         args = [
             "--coin", "monero",
             "-o", poolUrl,
             "-u", wallet,
-            "-p", workerFormatted, 
+            "-p", "x", 
             "--http-enabled",
             "--http-host", "127.0.0.1",
             "--http-port", "4077",
@@ -715,8 +1105,13 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, threads 
 });
 
 ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
-  const avgHash = benchmarkData.avg_hashrate ?? null;
-  const maxHash = benchmarkData.max_hashrate ?? null;
+  console.log('[stop-benchmark] Received data:', benchmarkData);
+  const avgHash = benchmarkData?.avg_hashrate ?? null;
+  const maxHash = benchmarkData?.max_hashrate ?? null;
+  const walletAddress = benchmarkData?.wallet ?? null;
+  
+  console.log('[stop-benchmark] Parsed values:', { avgHash, maxHash, walletAddress });
+  
   try {
     if (miner) {
       miner.kill();
@@ -728,7 +1123,7 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
     let benchmarkRecord = {
         avg_hashrate: avgHash,
         max_hashrate: maxHash,
-        duration_seconds,
+        duration_seconds
     };
 
     if (currentMinerType === 'gpu') {
@@ -747,7 +1142,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
             avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
             avg_power: powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : null,
             algorithm: "KawPow",
-          coin_name: "XMR"
+            coin_name: "XMR",
+            solana_wallet_address: walletAddress
         };
     } else {
         benchmarkRecord = {
@@ -756,7 +1152,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
              device_name: os.cpus()[0].model,
              avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
              algorithm: "RandomX",
-           coin_name: "XMR"
+             coin_name: "XMR",
+             solana_wallet_address: walletAddress
         };
     }
 
@@ -766,6 +1163,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
       created_at: new Date().toISOString()
     });
 
+    console.log('[stop-benchmark] Database result:', result);
+
     if (result.success) {
       log("✅ Benchmark data saved successfully.");
       return "Benchmark stopped and data saved";
@@ -774,13 +1173,38 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
       return `Benchmark stopped, but save failed: ${result.error}`;
     }
   } catch (err) {
-    log(`❌ Error during stop-miner: ${err.message}`);
+    console.error('[stop-benchmark] Error:', err);
+    log(`❌ Error during stop-benchmark: ${err.message}`);
     return `Error: ${err.message}`;
   }
 });
 
+// Fetch latest benchmark for device from Supabase
+ipcMain.handle('get-latest-benchmark', async (event, deviceType) => {
+  try {
+    const { data, error } = await supabase
+      .from('benchmarks')
+      .select('avg_hashrate, created_at')
+      .eq('device_uid', deviceUID)
+      .eq('device_type', deviceType.toUpperCase())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.warn('[get-latest-benchmark] DB error:', error.message);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error('[get-latest-benchmark] Error:', err);
+    return null;
+  }
+});
+
 // Mining-only controls: start/stop without saving benchmark to DB
-ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads }) => {
+ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads, poolUrl, donateLevel, cpuPriority, randomxMode, hugePages }) => {
   try {
     if (miner) {
       return "Miner already running";
@@ -811,28 +1235,42 @@ ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads }) 
         return msg;
       }
 
-      let poolUrl = process.env.MB_POOL_URL || "pool.hashvault.pro:3333";
-      if (!poolUrl.includes('://')) {
-        poolUrl = `stratum+tcp://${poolUrl}`;
+      let finalPoolUrl = poolUrl || process.env.MB_POOL_URL || "pool.hashvault.pro:3333";
+      if (!finalPoolUrl.includes('://')) {
+        finalPoolUrl = `stratum+tcp://${finalPoolUrl}`;
       }
 
+      const finalDonateLevel = donateLevel !== undefined ? donateLevel : 1;
+      const finalCpuPriority = cpuPriority !== undefined ? cpuPriority : 2;
+      const finalRandomxMode = randomxMode || 'auto';
+      const finalHugePages = hugePages !== undefined ? hugePages : true;
+
+      // New architecture: Pass Solana wallet as username to P2Pool
+      // wallet parameter is now the Solana address
       args = [
         "--coin", "monero",
-        "-o", poolUrl,
+        "-o", finalPoolUrl,
         "-u", wallet,
-        "-p", workerFormatted,
+        "-p", "x",
         "--http-enabled",
         "--http-host", "127.0.0.1",
         "--http-port", "4077",
-        "--donate-level", "1"
+        "--donate-level", finalDonateLevel.toString(),
+        "--cpu-priority", finalCpuPriority.toString(),
+        "--randomx-mode", finalRandomxMode
       ];
+
+      // Add huge pages flag if enabled
+      if (finalHugePages) {
+        args.push("--randomx-1gb-pages");
+      }
 
       if (threads && threads > 0) {
         args.push("-t", threads.toString());
         log(`[start-mining] Using ${threads} threads for CPU mining`);
       }
 
-      log(`[start-mining] Starting CPU miner (XMR) on ${poolUrl}: ${minerPath} ${args.join(' ')}`);
+      log(`[start-mining] Starting CPU miner (XMR) on ${finalPoolUrl} | Priority: ${finalCpuPriority} | Mode: ${finalRandomxMode} | Huge Pages: ${finalHugePages}`);
     }
 
     miner = spawn(minerPath, args, {
@@ -878,6 +1316,36 @@ ipcMain.handle("stop-mining", async (event) => {
     return "Mining stopped";
   } catch (err) {
     log(`❌ Error during stop-mining: ${err.message}`);
+    return `Error: ${err.message}`;
+  }
+});
+
+ipcMain.handle("pause-mining", async (event) => {
+  try {
+    if (miner && miner.pid) {
+      // SIGSTOP pauses the process
+      process.kill(miner.pid, 'SIGSTOP');
+      log(`[pause-mining] Paused mining process ${miner.pid}`);
+      return "Mining paused";
+    }
+    return "No mining process to pause";
+  } catch (err) {
+    log(`❌ Error during pause-mining: ${err.message}`);
+    return `Error: ${err.message}`;
+  }
+});
+
+ipcMain.handle("resume-mining", async (event) => {
+  try {
+    if (miner && miner.pid) {
+      // SIGCONT resumes the paused process
+      process.kill(miner.pid, 'SIGCONT');
+      log(`[resume-mining] Resumed mining process ${miner.pid}`);
+      return "Mining resumed";
+    }
+    return "No mining process to resume";
+  } catch (err) {
+    log(`❌ Error during resume-mining: ${err.message}`);
     return `Error: ${err.message}`;
   }
 });
