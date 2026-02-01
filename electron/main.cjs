@@ -197,6 +197,22 @@ ipcMain.handle('get-cpu-name', () => {
   return os.cpus()[0].model;
 });
 
+ipcMain.handle('get-cpu-info', () => {
+  const cpuCaps = getCPUCapabilities();
+  return {
+    model: cpuCaps.model,
+    cores: cpuCaps.cores,
+    hasAES: cpuCaps.hasAES,
+    hasAVX: cpuCaps.hasAVX,
+    hasAVX2: cpuCaps.hasAVX2,
+    arch: process.arch,
+    platform: process.platform,
+    supportsStandardXmrig: cpuCaps.hasAVX2,
+    supportsCompatXmrig: cpuCaps.hasAES,
+    message: cpuCaps.hasAVX2 ? '✅ Full support' : (cpuCaps.hasAES ? '⚠️ Limited support (use compat version)' : '❌ Legacy only')
+  };
+});
+
 ipcMain.handle('get-cpu-cores', () => {
   return os.cpus().length;
 });
@@ -354,6 +370,103 @@ ipcMain.handle('load-miner-settings', async (event) => {
   } catch (err) {
     console.error('❌ Failed to load miner settings:', err);
     return { success: false, error: err.message, settings: null };
+  }
+});
+
+// === Miner Logs Persistence ===
+const logsDir = path.join(app.getPath('userData'), 'logs');
+const MAX_LOG_AGE_DAYS = 7;
+
+// Ensure logs directory exists
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+  console.log('✅ Logs directory created:', logsDir);
+}
+
+// Cleanup old logs (older than 7 days)
+function cleanupOldLogs() {
+  try {
+    const now = Date.now();
+    const maxAgeMs = MAX_LOG_AGE_DAYS * 24 * 60 * 60 * 1000; // 7 days in ms
+    
+    const files = fs.readdirSync(logsDir);
+    let deletedCount = 0;
+    
+    for (const file of files) {
+      const filepath = path.join(logsDir, file);
+      const stat = fs.statSync(filepath);
+      const fileAge = now - stat.mtime.getTime();
+      
+      if (fileAge > maxAgeMs) {
+        fs.unlinkSync(filepath);
+        console.log(`🗑️ Deleted old log: ${file} (${Math.floor(fileAge / (24 * 60 * 60 * 1000))} days old)`);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      console.log(`✅ Cleanup complete: removed ${deletedCount} old log(s)`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to cleanup old logs:', err);
+  }
+}
+
+ipcMain.handle('save-miner-logs', async (event, { systemLogs, minerLogs, sessionType, device }) => {
+  try {
+    // Run cleanup before saving new log
+    cleanupOldLogs();
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `minebench-${sessionType}-${device}-${timestamp}.log`;
+    const filepath = path.join(logsDir, filename);
+
+    const content = `
+=== MineBench ${sessionType.toUpperCase()} Logs ===
+Device: ${device}
+Timestamp: ${new Date().toISOString()}
+Logs Directory: ${logsDir}
+
+=== SYSTEM LOGS ===
+${systemLogs.join('\n')}
+
+=== MINER LOGS ===
+${minerLogs.join('\n')}
+`.trim();
+
+    fs.writeFileSync(filepath, content, 'utf8');
+    console.log('✅ Miner logs saved to:', filepath);
+    return { success: true, filepath, logsDir };
+  } catch (err) {
+    console.error('❌ Failed to save miner logs:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-logs-directory', async () => {
+  return { path: logsDir, exists: fs.existsSync(logsDir) };
+});
+
+ipcMain.handle('open-folder', async (event, folderPath) => {
+  try {
+    if (!fs.existsSync(folderPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    
+    const command = process.platform === 'win32'
+      ? `explorer "${folderPath}"`
+      : process.platform === 'darwin'
+      ? `open "${folderPath}"`
+      : `xdg-open "${folderPath}"`;
+    
+    require('child_process').exec(command, (err) => {
+      if (err) console.error('Failed to open folder:', err);
+    });
+    
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to open folder:', err);
+    return { success: false, error: err.message };
   }
 });
 
@@ -618,16 +731,26 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
     // Production: MineBench Cloud node deployed on Akash (xmr.minebench.cloud)
     // NOTE: RPC port 18081 is forwarded on Akash; keep this in sync with current lease
     const rpcHost = process.env.MB_RPC_HOST || 'xmr.minebench.cloud';
+    const rpcHostBackup = process.env.MB_RPC_HOST_BACKUP || 'xmr2.minebench.cloud';
     const useInternalRpc = String(process.env.MB_RPC_USE_INTERNAL ?? 'true').toLowerCase() === 'true';
+    const useInternalRpcBackup = String(process.env.MB_RPC_BACKUP_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
     const rpcPortExternal = Number(process.env.MB_RPC_PORT) || 18081;
     const rpcPortInternal = Number(process.env.MB_RPC_PORT_INTERNAL) || 31860;
+    const rpcPortExternalBackup = Number(process.env.MB_RPC_PORT_BACKUP) || 32076;
+    const rpcPortInternalBackup = Number(process.env.MB_RPC_PORT_INTERNAL_BACKUP) || rpcPortInternal;
     const rpcPort = useInternalRpc ? rpcPortInternal : rpcPortExternal;
+    const rpcPortBackup = useInternalRpcBackup ? rpcPortInternalBackup : rpcPortExternalBackup;
 
     const poolConfigs = {
         'cpu': { 
           host: rpcHost,
           port: rpcPort, // Akash forwarded port for 18081 RPC
           container: 'minebench-monerod' 
+        },
+        'cpu-backup': {
+          host: rpcHostBackup,
+          port: rpcPortBackup,
+          container: 'minebench-monerod-backup'
         },
         'gpu': { 
           host: rpcHost,
@@ -918,14 +1041,50 @@ function createWindow() {
 }
 
 /**
+ * Перевірити CPU за наявністю необхідних інструкцій
+ * @returns {object} {hasAES, hasAVX, hasAVX2, model}
+ */
+function getCPUCapabilities() {
+    try {
+        const cpus = os.cpus();
+        if (cpus.length === 0) {
+            log('[CPU Capabilities] No CPU found');
+            return { hasAES: false, hasAVX: false, hasAVX2: false, model: 'Unknown' };
+        }
+        
+        const cpuModel = cpus[0].model || 'Unknown';
+        const flags = cpuModel.toLowerCase();
+        
+        let capabilities = {
+            hasAES: flags.includes('aes'),
+            hasAVX: flags.includes('avx'),
+            hasAVX2: flags.includes('avx2'),
+            model: cpuModel,
+            cores: os.cpus().length
+        };
+        
+        return capabilities;
+    } catch (err) {
+        log(`[CPU Capabilities Error] ${err.message}`);
+        return { hasAES: false, hasAVX: false, hasAVX2: false, model: 'Unknown', cores: os.cpus().length };
+    }
+}
+
+/**
  * Отримати шлях до правильного бінарника для поточної ОС
+ * Підтримує різні версії xmrig для старих та нових CPU
  * @param {string} minerName - назва майнера ('xmrig' або 't-rex')
+ * @param {boolean} forceOld - примусово використати старішу версію
  * @returns {string} шлях до бінарника
  */
-function getMinerPath(minerName) {
+function getMinerPath(minerName, forceOld = false) {
     // Визначити поточну платформу та архітектуру
     const platform = process.platform; // 'win32', 'darwin', 'linux'
     const arch = process.arch; // 'x64', 'arm64', тощо
+    
+    // Отримати можливості CPU
+    const cpuCaps = getCPUCapabilities();
+    log(`[getMinerPath] CPU: ${cpuCaps.model} | Cores: ${cpuCaps.cores} | AES: ${cpuCaps.hasAES} | AVX: ${cpuCaps.hasAVX} | AVX2: ${cpuCaps.hasAVX2}`);
     
     // Маппінг назв майнерів на імена папок (case-sensitive)
     const minerFolderMap = {
@@ -939,11 +1098,9 @@ function getMinerPath(minerName) {
     let exeExt = '';
     
     if (platform === 'win32') {
-        // Windows: підтримувати x64 та arm64
         platformDir = arch === 'arm64' ? 'win-arm64' : 'win-x64';
         exeExt = '.exe';
     } else if (platform === 'darwin') {
-        // macOS: підтримувати x64 та arm64 (Apple Silicon)
         platformDir = arch === 'arm64' ? 'macos-arm64' : 'macos-x64';
     } else if (platform === 'linux') {
         platformDir = 'linux-x64';
@@ -951,15 +1108,32 @@ function getMinerPath(minerName) {
         throw new Error(`Unsupported platform: ${platform}`);
     }
     
+    // Вирішити, яку версію xmrig використати
+    let minerSubDir = '';
+    if (minerName === 'xmrig') {
+        // Всі версії доступні на всіх платформах
+        // Legacy: v5.11 (Windows) / v6.8 (Linux/macOS) - для старих CPU
+        // Compat: v6.14 - для CPU з AES але без AVX2
+        // Standard: v6.21 - для новітніх CPU з повною підтримкою
+        
+        if (forceOld || (!cpuCaps.hasAVX2 && !cpuCaps.hasAES)) {
+            minerSubDir = '/legacy';
+            log(`[getMinerPath] ⚠️  Using xmrig LEGACY version for old CPU (no AVX2/AES)`);
+        } else if (!cpuCaps.hasAVX2) {
+            minerSubDir = '/compat';
+            log(`[getMinerPath] ⚠️  Using xmrig COMPATIBILITY version (AES only, no AVX2)`);
+        } else {
+            log(`[getMinerPath] ✅ Using xmrig standard version (full CPU support)`);
+        }
+    }
+    
     const minerExe = `${minerName}${exeExt}`;
     
     if (app.isPackaged) {
-        // У запакованому додатку Miner знаходиться поруч з executable
         const resourcesPath = path.dirname(process.execPath);
-        return path.join(resourcesPath, 'Miner', minerFolder, platformDir, minerExe);
+        return path.join(resourcesPath, 'Miner', minerFolder, platformDir + minerSubDir, minerExe);
     } else {
-        // У development режимі
-        return path.join(__dirname, '..', 'Miner', minerFolder, platformDir, minerExe);
+        return path.join(__dirname, '..', 'Miner', minerFolder, platformDir + minerSubDir, minerExe);
     }
 }
 
@@ -1028,8 +1202,8 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, threads 
 
         // Configuration for MineBench Private Pool (Monero/XMR)
         // Development: Connects to local P2Pool instance (127.0.0.1:3333)
-        // Production: MineBench Cloud P2Pool (deployed on Akash)
-        let poolUrl = process.env.MB_POOL_URL || "pool.hashvault.pro:3333"; 
+        // Production: MineBench Cloud P2Pool (deployed on Akash - port 32599)
+        let poolUrl = process.env.MB_POOL_URL || "xmr.minebench.cloud:32599"; 
         // Ensure xmrig-compatible scheme for stratum URL
         if (!poolUrl.includes('://')) {
           poolUrl = `stratum+tcp://${poolUrl}`;
@@ -1235,7 +1409,7 @@ ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads, po
         return msg;
       }
 
-      let finalPoolUrl = poolUrl || process.env.MB_POOL_URL || "pool.hashvault.pro:3333";
+      let finalPoolUrl = poolUrl || process.env.MB_POOL_URL || "xmr.minebench.cloud:32599";
       if (!finalPoolUrl.includes('://')) {
         finalPoolUrl = `stratum+tcp://${finalPoolUrl}`;
       }

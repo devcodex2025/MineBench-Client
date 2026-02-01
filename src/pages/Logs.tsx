@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, Circle, Trash2, Download } from 'lucide-react';
+import { Terminal, Circle, Trash2, Download, FolderOpen } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 interface LogEntry {
   time: string;
   message: string;
-  type: 'miner' | 'node' | 'system';
+  type: 'mining' | 'benchmark' | 'node';
 }
 
 export const Logs: React.FC = () => {
@@ -15,7 +15,8 @@ export const Logs: React.FC = () => {
   const { logs: storeLogs, pools } = useMinerStore();
   const [minerLogs, setMinerLogs] = useState<string[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'miner' | 'node' | 'system'>('all');
+  const [filter, setFilter] = useState<'all' | 'mining' | 'benchmark' | 'node'>('all');
+  const [logsDir, setLogsDir] = useState<string | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +26,19 @@ export const Logs: React.FC = () => {
 
     if (window.electron) {
       window.electron.onMinerLog(handleMinerLog);
+    }
+
+    // Load logs directory path
+    if (window.electron?.invoke) {
+      window.electron.invoke('get-logs-directory')
+        .then((result: any) => {
+          if (result?.path) {
+            setLogsDir(result.path);
+          }
+        })
+        .catch((err: any) => {
+          console.warn('Failed to get logs directory:', err);
+        });
     }
 
     return () => {
@@ -40,6 +54,14 @@ export const Logs: React.FC = () => {
 
   const clearLogs = () => {
     setMinerLogs([]);
+  };
+
+  const openLogsFolder = () => {
+    if (logsDir && window.electron?.invoke) {
+      window.electron.invoke('open-folder', logsDir).catch((err: any) => {
+        console.warn('Failed to open folder:', err);
+      });
+    }
   };
 
   const downloadLogs = () => {
@@ -62,19 +84,37 @@ export const Logs: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const getNodeStatus = () => {
-    const cpuPool = pools['cpu'];
-    if (!cpuPool) return { status: 'disconnected', text: 'Not Connected' };
+  const getPoolStatus = (poolId: string) => {
+    const pool = pools[poolId];
+    if (!pool) return { status: 'disconnected', text: 'Not Connected', pool: undefined };
     
-    if (!cpuPool.connected) return { status: 'syncing', text: 'Connecting...' };
-    if (!cpuPool.isSynced) return { status: 'syncing', text: `Syncing ${cpuPool.progress.toFixed(1)}%` };
-    return { status: 'ready', text: 'Synced' };
+    if (!pool.connected) return { status: 'syncing', text: 'Connecting...', pool };
+    if (!pool.isSynced) return { status: 'syncing', text: `Syncing ${pool.progress.toFixed(1)}%`, pool };
+    return { status: 'ready', text: 'Synced', pool };
   };
 
-  const nodeStatus = getNodeStatus();
+  const primaryStatus = getPoolStatus('cpu');
+  const backupStatus = getPoolStatus('cpu-backup');
+  const categorizeSystemLog = (log: string): LogEntry['type'] => {
+    const lower = log.toLowerCase();
+    if (lower.includes('benchmark')) return 'benchmark';
+    if (lower.includes('mining') || lower.includes('miner')) return 'mining';
+    if (
+      lower.includes('node') ||
+      lower.includes('pool') ||
+      lower.includes('sync') ||
+      lower.includes('synced') ||
+      lower.includes('reserve') ||
+      lower.includes('primary')
+    ) {
+      return 'node';
+    }
+    return 'node';
+  };
+
   const combinedLogs = [
-    ...storeLogs.map(log => ({ type: 'system' as const, message: log })),
-    ...minerLogs.map(log => ({ type: 'miner' as const, message: log }))
+    ...storeLogs.map(log => ({ type: categorizeSystemLog(log), message: log })),
+    ...minerLogs.map(log => ({ type: 'mining' as const, message: log }))
   ];
 
   const filteredLogs = filter === 'all' 
@@ -88,12 +128,23 @@ export const Logs: React.FC = () => {
         <div>
           <h1 className={cn("text-2xl font-bold flex items-center gap-3", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
             <Terminal className="w-7 h-7 text-emerald-500" />
-            Node Logs
+            System Logs
           </h1>
           <p className="text-sm text-zinc-500 mt-1">Real-time system and miner output</p>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={openLogsFolder}
+            disabled={!logsDir}
+            className={cn("px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+              theme === 'light'
+                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900'
+                : 'bg-emerald-900/40 hover:bg-emerald-900/60 text-emerald-200'
+            )}>
+            <FolderOpen className="w-4 h-4" />
+            Open Logs Folder
+          </button>
           <button
             onClick={downloadLogs}
             className={cn("px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors",
@@ -117,6 +168,17 @@ export const Logs: React.FC = () => {
         </div>
       </div>
 
+      {/* Logs info */}
+      {logsDir && (
+        <div className={cn("p-3 rounded-lg border text-xs",
+          theme === 'light'
+            ? 'bg-blue-50 border-blue-200 text-blue-700'
+            : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+        )}>
+          📁 Logs automatically saved to: <code className="font-mono text-[11px] break-all">{logsDir}</code>
+        </div>
+      )}
+
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Node Status */}
@@ -131,16 +193,21 @@ export const Logs: React.FC = () => {
             )}>XMR Node</div>
             <Circle 
               className={`w-3 h-3 ${
-                nodeStatus.status === 'ready' ? 'fill-emerald-500 text-emerald-500' :
-                nodeStatus.status === 'syncing' ? 'fill-yellow-500 text-yellow-500 animate-pulse' :
+                primaryStatus.status === 'ready' ? 'fill-emerald-500 text-emerald-500' :
+                primaryStatus.status === 'syncing' ? 'fill-yellow-500 text-yellow-500 animate-pulse' :
                 'fill-zinc-600 text-zinc-600'
               }`}
             />
           </div>
-          <div className={cn("mt-2 text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{nodeStatus.text}</div>
-          {pools['cpu']?.height > 0 && (
+          <div className={cn("mt-2 text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{primaryStatus.text}</div>
+          {primaryStatus.pool?.height > 0 && (
             <div className={cn("mt-1 text-xs font-mono", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
-              Block {pools['cpu'].height.toLocaleString()} / {pools['cpu'].targetHeight.toLocaleString()}
+              Block {primaryStatus.pool.height.toLocaleString()} / {primaryStatus.pool.targetHeight.toLocaleString()}
+            </div>
+          )}
+          {backupStatus.pool && (
+            <div className={cn("mt-2 text-xs", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
+              CPU Reserve NODE: {backupStatus.text}
             </div>
           )}
         </div>
@@ -196,20 +263,25 @@ export const Logs: React.FC = () => {
       <div className={cn("flex items-center gap-2 border-b",
         theme === 'light' ? 'border-zinc-200' : 'border-white/5'
       )}>
-        {(['all', 'miner', 'system'] as const).map((tab) => (
+        {([
+          { key: 'all', label: 'All' },
+          { key: 'mining', label: 'Mining' },
+          { key: 'benchmark', label: 'Benchmarks' },
+          { key: 'node', label: 'Node' }
+        ] as const).map((tab) => (
           <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors relative ${
-              filter === tab
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
+            className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+              filter === tab.key
                 ? theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
                 : theme === 'light'
                 ? 'text-zinc-600 hover:text-zinc-900'
                 : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            {tab}
-            {filter === tab && (
+            {tab.label}
+            {filter === tab.key && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
             )}
           </button>
@@ -253,9 +325,9 @@ export const Logs: React.FC = () => {
             <div
               key={idx}
               className={`py-1 px-2 rounded hover:bg-white/5 transition-colors ${
-                log.type === 'miner' ? 'text-blue-400' :
-                log.type === 'system' ? (theme === 'light' ? 'text-emerald-600' : 'text-emerald-400') :
-                'text-zinc-400'
+                log.type === 'mining' ? 'text-blue-400' :
+                log.type === 'benchmark' ? (theme === 'light' ? 'text-purple-600' : 'text-purple-400') :
+                (theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')
               }`}
             >
               <span className="text-zinc-600 mr-2">[{log.type.toUpperCase()}]</span>

@@ -11,6 +11,10 @@ import { DeveloperSettings } from './DeveloperSettings';
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme } = useTheme();
   const { sessionRewards, status, pools } = useMinerStore();
+  const poolLabels: Record<string, string> = {
+    'cpu': 'CPU Primary',
+    'cpu-backup': 'CPU Reserve NODE'
+  };
 
   return (
     <div className={cn(
@@ -42,7 +46,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               <NavItem to="/benchmark" icon={Activity} label="Benchmarks" />
               <NavItem to="/mining" icon={Hammer} label="Mining Mode" />
               <NavItem to="/statistics" icon={TrendingUp} label="Statistics" />
-              <NavItem to="/logs" icon={Terminal} label="Node Logs" />
+              <NavItem to="/logs" icon={Terminal} label="System Logs" />
            </nav>
 
            <div className={cn("space-y-3 pt-4 border-t", 
@@ -60,7 +64,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                         <div className="flex items-center justify-between text-xs">
                             <span className={cn("uppercase font-medium tracking-wider",
                               theme === 'light' ? 'text-zinc-700' : 'text-zinc-500'
-                            )}>{id} Node</span>
+                            )}>{poolLabels[id] ?? id} Node</span>
                             <span className={cn(
                                 "px-1.5 py-0.5 rounded text-[10px] uppercase font-bold",
                                 !pool.connected ? "bg-yellow-500/10 text-yellow-500 animate-pulse" :
