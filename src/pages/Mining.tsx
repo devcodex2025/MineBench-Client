@@ -82,6 +82,7 @@ const Mining: React.FC = () => {
     const currentTemp = useMinerStore((state) => state.currentTemp);
     const currentPower = useMinerStore((state) => state.currentPower);
     const resetSession = useMinerStore((state) => state.resetSession);
+    const pools = useMinerStore((state) => state.pools);
     const loadSettings = useMinerStore((state) => state.loadSettings);
     const saveSettings = useMinerStore((state) => state.saveSettings);
     
@@ -113,6 +114,9 @@ const Mining: React.FC = () => {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [peakHashrate, setPeakHashrate] = useState(0);
     const [poolNetworkHashrate, setPoolNetworkHashrate] = useState(300000000000); // Default Monero difficulty
+    const primaryPool = pools?.['cpu'];
+    const reservePool = pools?.['cpu-backup'];
+    const isNodeFullySynced = !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9));
 
     // Wallet balance and rewards
     const [xmrBalance, setXmrBalance] = useState(0);
@@ -364,6 +368,10 @@ const Mining: React.FC = () => {
 
     const startMining = async () => {
         if (status === 'running' || status === 'starting') return;
+        if (!isNodeFullySynced) {
+            addLog('⏳ Node is not fully synced (100%). Mining is disabled until sync completes.');
+            return;
+        }
         resetSession();
         setElapsedTime(0);
         setPeakHashrate(0);
@@ -395,6 +403,19 @@ const Mining: React.FC = () => {
         if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
         setStatus('stopping');
         try {
+            // Save logs to disk before stopping
+            const { logs: storeLogs } = useMinerStore.getState();
+            if (window.electron?.invoke) {
+                await window.electron.invoke('save-miner-logs', {
+                    systemLogs: storeLogs,
+                    minerLogs: minerLogs,
+                    sessionType: 'mining',
+                    device: deviceType
+                }).catch((err: any) => {
+                    console.warn('Failed to save logs:', err);
+                });
+            }
+
             await window.electron.invoke('stop-mining', {});
             setStatus('completed');
             addLog('⏹️ Mining stopped');
@@ -598,21 +619,21 @@ const Mining: React.FC = () => {
                                         type="button"
                                         onClick={() => setShowHugePagesInfo(!showHugePagesInfo)}
                                         className={cn("flex items-center", theme === 'light' ? 'text-yellow-600 hover:text-yellow-700' : 'text-yellow-400 hover:text-yellow-300')}
-                                        title="Інформація про Huge Pages"
+                                        title="Information about Huge Pages"
                                     >
                                         <Info size={14} />
                                     </button>
                                 </label>
                                 {showHugePagesInfo && (
                                     <div className={cn("text-xs mt-2 p-2 rounded border", theme === 'light' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-300')}>
-                                        <p className="font-semibold mb-1">Що таке Huge Pages?</p>
+                                        <p className="font-semibold mb-1">What is Huge Pages?</p>
                                         <p className="opacity-90">
-                                            Huge Pages дозволяє системі використовувати більші блоки памяті замість звичайних, що покращує продуктивність кешу процесора. Це особливо корисно для майнинґу, де великі обсяги памяті обробляються постійно. Включення Huge Pages може збільшити хешрейт на 10-20%.
+                                            Huge Pages allows the system to use larger memory blocks instead of standard pages, which improves CPU cache performance. This is especially useful for mining, where large amounts of memory are processed continuously. Enabling Huge Pages can increase hash rate by 10-20%.
                                         </p>
                                     </div>
                                 )}
                                 <p className={cn("text-xs mt-1 ml-6", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>
-                                    Покращує продуктивність памяті (+10-20% хешрейт)
+                                    Improves memory performance (+10-20% hash rate)
                                 </p>
                             </div>
                         </div>
@@ -648,9 +669,18 @@ const Mining: React.FC = () => {
                                     ⚠️ Невалідна адреса Monero гаманця. Будь ласка, оновіть гаманець перед початком майнінгу.
                                 </div>
                             )}
+                            {!isNodeFullySynced && status !== 'running' && status !== 'starting' && (
+                                <div className={cn("col-span-2 p-3 rounded-lg text-xs text-center border",
+                                    theme === 'light'
+                                        ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
+                                        : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                                )}>
+                                    ⏳ Node sync must be 100% to start mining.
+                                </div>
+                            )}
                             <button
                                 onClick={status === 'running' || status === 'starting' ? stopMining : startMining}
-                                disabled={status === 'starting' || (!walletValid && status === 'idle')}
+                                disabled={status === 'starting' || (!walletValid && status === 'idle') || (!isNodeFullySynced && status === 'idle')}
                                 className={cn(
                                     'py-3.5 px-4 rounded-xl font-semibold text-sm tracking-tight transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer',
                                     status === 'running' || status === 'starting'

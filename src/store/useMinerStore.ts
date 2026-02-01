@@ -130,7 +130,8 @@ export const useMinerStore = create<MiningState>((set) => ({
     logs: [],
 
     pools: {
-        'cpu': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' }
+        'cpu': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' },
+        'cpu-backup': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' }
         // GPU pool will be added when RVN node is deployed
     },
 

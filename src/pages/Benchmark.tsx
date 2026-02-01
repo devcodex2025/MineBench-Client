@@ -27,6 +27,7 @@ const Benchmark = () => {
     const currentTemp = useMinerStore(state => state.currentTemp);
     const currentPower = useMinerStore(state => state.currentPower);
     const resetSession = useMinerStore(state => state.resetSession);
+    const pools = useMinerStore(state => state.pools);
 
 
     const [duration, setDuration] = useState<number>(60);
@@ -35,6 +36,9 @@ const Benchmark = () => {
     const [sysInfo, setSysInfo] = useState<{cpu: string, cores: number, ram: string} | null>(null);
     const [showAuthWarning, setShowAuthWarning] = useState(false);
     const [pendingStart, setPendingStart] = useState(false);
+    const primaryPool = pools?.['cpu'];
+    const reservePool = pools?.['cpu-backup'];
+    const isNodeFullySynced = !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9));
 
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -125,6 +129,10 @@ const Benchmark = () => {
 
     const startBenchmark = async () => {
         if (status === 'running') return;
+        if (!isNodeFullySynced) {
+            addLog('⏳ Node is not fully synced (100%). Benchmark is disabled until sync completes.');
+            return;
+        }
 
         // Check if user is authenticated
         if (!user?.publicKey) {
@@ -216,6 +224,19 @@ const Benchmark = () => {
         setFinalResults({ avg, max });
 
         try {
+            // Save logs to disk before stopping
+            const { logs: storeLogs } = useMinerStore.getState();
+            if (window.electron?.invoke) {
+                await window.electron.invoke('save-miner-logs', {
+                    systemLogs: storeLogs,
+                    minerLogs: [],
+                    sessionType: 'benchmark',
+                    device: deviceType
+                }).catch((err: any) => {
+                    console.warn('Failed to save logs:', err);
+                });
+            }
+
             const payload = {
                 avg_hashrate: avg,
                 max_hashrate: max,
@@ -432,7 +453,7 @@ const Benchmark = () => {
 
                         <button
                             onClick={status === 'running' ? stopBenchmark : startBenchmark}
-                            disabled={status === 'stopping'}
+                            disabled={status === 'stopping' || (!isNodeFullySynced && status !== 'running')}
                             className={cn(
                                 "w-full py-4 rounded-lg font-bold text-sm tracking-wide transition-all transform active:scale-[0.98]",
                                 status === 'running' 
@@ -450,6 +471,16 @@ const Benchmark = () => {
                                 )}
                             </div>
                         </button>
+
+                        {!isNodeFullySynced && status !== 'running' && (
+                            <div className={cn("mt-3 p-3 rounded-lg border text-xs",
+                                theme === 'light'
+                                    ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
+                                    : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                            )}>
+                                ⏳ Node sync must be 100% to start benchmark.
+                            </div>
+                        )}
 
                         {/* Status Indicator */}
                         {status === 'running' && (

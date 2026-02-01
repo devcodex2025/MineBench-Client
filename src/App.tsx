@@ -11,14 +11,21 @@ import { useTheme } from './contexts/ThemeContext';
 import { useMinerStore } from './store/useMinerStore';
 import { cn, formatHashrate } from './lib/utils';
 import { Activity, Coins, TrendingUp, AlertTriangle, X } from 'lucide-react';
+import { getEnvironmentConfig } from './config/environment';
 
 const PoolMonitor = () => {
     const updatePoolStatus = useMinerStore(state => state.updatePoolStatus);
+    const setPoolUrl = useMinerStore(state => state.setPoolUrl);
+    const poolUrl = useMinerStore(state => state.poolUrl);
+    const addLog = useMinerStore(state => state.addLog);
+    const env = getEnvironmentConfig();
+    const primaryPoolUrl = env.poolStratumUrl;
+    const reservePoolUrl = env.poolStratumUrlBackup;
 
     useEffect(() => {
         const checkSync = async () => {
-            // Only check CPU pool - GPU pool not deployed yet
-            const poolIds = ['cpu'];
+            // Check primary and backup CPU pools - GPU pool not deployed yet
+            const poolIds = ['cpu', 'cpu-backup'];
             for (const id of poolIds) {
                 try {
                     const res = await window.electron.invoke('get-pool-sync', id);
@@ -31,12 +38,29 @@ const PoolMonitor = () => {
                     });
                 }
             }
+
+            const state = useMinerStore.getState();
+            const primaryPool = state.pools?.['cpu'];
+            const reservePool = state.pools?.['cpu-backup'];
+            const primarySynced = !!(primaryPool?.isSynced && primaryPool?.progress >= 99.9);
+            const reserveSynced = !!(reservePool?.isSynced && reservePool?.progress >= 99.9);
+            const isMineBenchPool = [primaryPoolUrl, reservePoolUrl].some((url) => !!url && !!poolUrl && poolUrl.includes(url));
+
+            if (isMineBenchPool) {
+                if (!primarySynced && reserveSynced && reservePoolUrl && poolUrl !== reservePoolUrl) {
+                    setPoolUrl(reservePoolUrl);
+                    addLog('🔁 Auto-switched to CPU Reserve NODE (primary not fully synced).');
+                } else if (primarySynced && primaryPoolUrl && poolUrl !== primaryPoolUrl) {
+                    setPoolUrl(primaryPoolUrl);
+                    addLog('🔁 Auto-switched to CPU Primary (fully synced).');
+                }
+            }
         };
 
         checkSync();
         const interval = setInterval(checkSync, 10000); // Check every 10s
         return () => clearInterval(interval);
-    }, [updatePoolStatus]);
+    }, [updatePoolStatus, setPoolUrl, poolUrl, addLog, primaryPoolUrl, reservePoolUrl]);
 
     return null;
 };
@@ -107,6 +131,10 @@ const Dashboard = () => {
     const { pools, totalRewards, deviceType } = useMinerStore();
     const { theme } = useTheme();
     const cpuPool = pools['cpu'];
+    const poolLabels: Record<string, string> = {
+        'cpu': 'CPU Primary',
+        'cpu-backup': 'CPU Reserve NODE'
+    };
     const navigate = useNavigate();
     const [estimatedHashrate, setEstimatedHashrate] = useState<number>(0);
     const [lastBenchmarkDate, setLastBenchmarkDate] = useState<Date | null>(null);
@@ -231,7 +259,7 @@ const Dashboard = () => {
                     <div className={cn("space-y-1 font-mono text-xs", theme === 'light' ? 'text-zinc-700' : 'text-zinc-400')}>
                         {Object.entries(pools).map(([id, pool]) => (
                             <div key={id} className={cn("flex justify-between py-2.5 border-b last:border-0", theme === 'light' ? 'border-zinc-200' : 'border-white/5')}>
-                                <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>{id} Daemon ({pool.coin})</span>
+                                <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>{poolLabels[id] ?? id} Daemon ({pool.coin})</span>
                                 <div className="flex items-center gap-3">
                                     <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>{pool.progress.toFixed(1)}%</span>
                                                                         <span className={pool.connected

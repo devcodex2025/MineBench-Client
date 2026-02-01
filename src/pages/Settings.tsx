@@ -315,7 +315,8 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   );
 
   const presetPools = [
-    { name: 'HashVault', url: 'pool.hashvault.pro:3333' },
+    { name: 'MineBench Pool (Primary)', url: 'xmr.minebench.cloud:32599' },
+    { name: 'MineBench Pool (Reserve)', url: 'xmr2.minebench.cloud:31915' },
     { name: 'SupportXMR', url: 'pool.supportxmr.com:3333' },
     { name: 'MoneroOcean', url: 'gulf.moneroocean.stream:10032' },
     { name: 'MineBench Cloud (Production)', url: env.poolStratumUrl },
@@ -375,7 +376,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         <input
           value={localPool}
           onChange={(e) => setLocalPool(e.target.value)}
-          placeholder="host:port (e.g., pool.hashvault.pro:3333)"
+          placeholder="host:port (e.g., xmr.minebench.cloud:32599)"
           className={cn(
             'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
             theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'

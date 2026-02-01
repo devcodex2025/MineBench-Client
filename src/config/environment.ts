@@ -36,17 +36,26 @@ export interface EnvironmentConfig {
   poolStratumHost: string;
   poolStratumPort: number;
   poolStratumUrl: string;
+  poolStratumHostBackup: string;
+  poolStratumPortBackup: number;
+  poolStratumUrlBackup: string;
 
   // Pool RPC (P2Pool JSON-RPC)
   poolRpcHost: string;
   poolRpcPort: number;
   poolRpcUrl: string;
+  poolRpcHostBackup: string;
+  poolRpcPortBackup: number;
+  poolRpcUrlBackup: string;
 
   // Pool Infra Ports (for diagnostics/config display)
   moneroP2pPort: number;
+  moneroP2pPortBackup: number;
   moneroRpcPort: number;
+  moneroRpcPortBackup: number;
   moneroZmqPort: number;
   p2poolP2pPort: number;
+  p2poolP2pPortBackup: number;
 
   // Akash port mapping (external -> internal)
   stratumPortInternal: number;
@@ -70,15 +79,24 @@ const developmentConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.devnet.solana.com',
   poolApiUrl: 'http://localhost:8080/api',
   poolStratumHost: 'xmr.minebench.cloud',
-  poolStratumPort: 3333,
-  poolStratumUrl: 'xmr.minebench.cloud:3333',
+  poolStratumPort: 32599,
+  poolStratumUrl: 'xmr.minebench.cloud:32599',
+  poolStratumHostBackup: 'xmr2.minebench.cloud',
+  poolStratumPortBackup: 31915,
+  poolStratumUrlBackup: 'xmr2.minebench.cloud:31915',
   poolRpcHost: 'xmr.minebench.cloud',
-  poolRpcPort: 18081,
-  poolRpcUrl: 'http://xmr.minebench.cloud:18081/json_rpc',
-  moneroP2pPort: 18080,
-  moneroRpcPort: 18081,
+  poolRpcPort: 31860,
+  poolRpcUrl: 'http://xmr.minebench.cloud:31860/json_rpc',
+  poolRpcHostBackup: 'xmr2.minebench.cloud',
+  poolRpcPortBackup: 32076,
+  poolRpcUrlBackup: 'http://xmr2.minebench.cloud:32076/json_rpc',
+  moneroP2pPort: 31527,
+  moneroP2pPortBackup: 31339,
+  moneroRpcPort: 31860,
+  moneroRpcPortBackup: 32076,
   moneroZmqPort: 18083,
-  p2poolP2pPort: 37889,
+  p2poolP2pPort: 31656,
+  p2poolP2pPortBackup: 31885,
   stratumPortInternal: 32599,
   moneroP2pPortInternal: 31527,
   moneroRpcPortInternal: 31860,
@@ -100,15 +118,24 @@ const productionConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
   poolApiUrl: 'https://minebench.cloud/api/pool',
   poolStratumHost: 'xmr.minebench.cloud',
-  poolStratumPort: 3333,
-  poolStratumUrl: 'xmr.minebench.cloud:3333',
+  poolStratumPort: 32599,
+  poolStratumUrl: 'xmr.minebench.cloud:32599',
+  poolStratumHostBackup: 'xmr2.minebench.cloud',
+  poolStratumPortBackup: 31915,
+  poolStratumUrlBackup: 'xmr2.minebench.cloud:31915',
   poolRpcHost: 'xmr.minebench.cloud',
-  poolRpcPort: 18081,
-  poolRpcUrl: 'http://xmr.minebench.cloud:18081/json_rpc',
-  moneroP2pPort: 18080,
-  moneroRpcPort: 18081,
+  poolRpcPort: 31860,
+  poolRpcUrl: 'http://xmr.minebench.cloud:31860/json_rpc',
+  poolRpcHostBackup: 'xmr2.minebench.cloud',
+  poolRpcPortBackup: 32076,
+  poolRpcUrlBackup: 'http://xmr2.minebench.cloud:32076/json_rpc',
+  moneroP2pPort: 31527,
+  moneroP2pPortBackup: 31339,
+  moneroRpcPort: 31860,
+  moneroRpcPortBackup: 32076,
   moneroZmqPort: 18083,
   p2poolP2pPort: 37889,
+  p2poolP2pPortBackup: 31885,
   stratumPortInternal: 32599,
   moneroP2pPortInternal: 31527,
   moneroRpcPortInternal: 31860,
