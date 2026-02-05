@@ -26,9 +26,9 @@ export interface P2PoolStats {
   poolHashrate: number;
   poolDifficulty: number;
   miners: number;
-  totalShares: number;
-  blockReward: number;
-  nextBlockTime: number;
+  networkHashrate?: number;
+  networkDifficulty?: number;
+  lastBlockTime?: number;
 }
 
 class P2PoolService {
@@ -87,17 +87,45 @@ class P2PoolService {
    */
   async getPoolStats(): Promise<P2PoolStats> {
     try {
-      const info = await this.rpcCall('get_info');
+      let info = { difficulty: 0 };
       
+      try {
+        info = await this.rpcCall('get_info');
+      } catch (p2poolErr) {
+        console.warn('[P2PoolAPI] P2Pool not available, using fallback:', p2poolErr);
+        // Use fallback difficulty for Monero network (current approximate)
+        // Current Monero network hashrate is ~2.7-3.0 GH/s
+        // Difficulty = hashrate * 120 seconds
+        info.difficulty = 325000000000; // ~2.71 GH/s network hashrate
+      }
+
+      // Fetch global pool stats from MineBench backend
+      let poolExtra = { poolHashrate: 0, miners: 0 };
+      try {
+        // Use relative URL for Vite proxy in development
+        const res = await fetch('/api/pool/stats', { signal: AbortSignal.timeout(15000) });
+        if (res.ok) {
+          const data = await res.json();
+          poolExtra.poolHashrate = data.poolHashrate || 0;
+          poolExtra.miners = data.miners || 0;
+        } else {
+          console.warn(`[P2PoolAPI] Backend returned status ${res.status} for pool stats`);
+        }
+      } catch (e) {
+        console.warn(`[P2PoolAPI] Failed to fetch stats from backend: ${e}`);
+      }
+
       return {
-        poolHashrate: info.difficulty / 120, // rough estimate
-        poolDifficulty: info.difficulty,
-        miners: 0, // не доступно через RPC
-        totalShares: 0, // не доступно через RPC
-        blockReward: 4.4, // Monero block reward (примерно)
-        nextBlockTime: 120 // Monero target: 120 seconds
+        // Use real hashrate from backend if available, otherwise estimate from difficulty
+        poolHashrate: poolExtra.poolHashrate || (info.difficulty / 120),
+        miners: poolExtra.miners || 0,
+        poolDifficulty: info.difficulty || 0,
+        networkHashrate: info.difficulty / 120,
+        networkDifficulty: info.difficulty || 0,
+        lastBlockTime: Date.now() - 30000 // Mock last block since get_info doesn't have it directly
       };
     } catch (err) {
+      console.error('[P2PoolAPI] Failed to get pool stats:', err);
       throw new Error(`Failed to get pool stats: ${err}`);
     }
   }
@@ -146,11 +174,11 @@ class P2PoolService {
   } {
     // Формула: Reward = (Your Hashrate / Network Hashrate) * Block Reward * Blocks per period
     // Monero: 1 block кожні 120 сек = 720 блоків на день
-    
+
     // Network hashrate estimate (rough)
     const networkHashrate = networkDifficulty / 120;
     const shareOfNetwork = hashrate / networkHashrate;
-    
+
     const blocksPerHour = (3600 / 120); // 30 блоків
     const blocksPerDay = blocksPerHour * 24; // 720 блоків
     const blocksPerMonth = blocksPerDay * 30; // 21,600 блоків
@@ -187,7 +215,7 @@ class P2PoolService {
     // Monero address: 95 char base58 або 106 char (integrated address)
     const moneroPrimaryPattern = /^4[0-9a-zA-Z]{94}$/;
     const moneroIntegratedPattern = /^8[0-9a-zA-Z]{105}$/;
-    
+
     return moneroPrimaryPattern.test(address) || moneroIntegratedPattern.test(address);
   }
 

@@ -210,13 +210,11 @@ export const Settings = () => {
             </div>
             <button
               onClick={toggleTheme}
-              className={`w-12 h-6 rounded-full flex items-center px-1 transition-colors cursor-pointer ${
-                theme === 'dark' ? 'bg-emerald-500' : 'bg-zinc-600'
-              }`}
+              className={`w-12 h-6 rounded-full flex items-center px-1 transition-colors cursor-pointer ${theme === 'dark' ? 'bg-emerald-500' : 'bg-zinc-600'
+                }`}
             >
-              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                theme === 'dark' ? 'ml-auto' : ''
-              }`}></div>
+              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${theme === 'dark' ? 'ml-auto' : ''
+                }`}></div>
             </button>
           </div>
 
@@ -241,16 +239,15 @@ export const Settings = () => {
                 autoStart ? 'bg-emerald-500' : 'bg-zinc-600'
               )}
             >
-              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                autoStart ? 'ml-auto' : ''
-              }`}></div>
+              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${autoStart ? 'ml-auto' : ''
+                }`}></div>
             </button>
           </div>
         </div>
       </div>
 
       {/* Mining Configuration */}
-      {false && (
+      {true && (
         <div className={cardClass}>
           <div className="flex items-start gap-3 mb-4">
             <SettingsIcon size={20} className="text-yellow-400 mt-1 flex-shrink-0" />
@@ -267,12 +264,12 @@ export const Settings = () => {
       {/* About Section */}
       <div className={cardClass}>
         <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>About MineBench</h2>
-        
+
         <div className={cn("space-y-2 text-sm", theme === 'light' ? 'text-zinc-700' : 'text-zinc-400')}>
           <p>
             MineBench is a decentralized mining benchmark platform designed to provide accurate and real-time performance metrics for cryptocurrency mining operations.
           </p>
-          
+
           <div className="pt-4 space-y-2 text-xs">
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>License:</span> MIT</p>
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Website:</span> <span className="text-blue-400">minebench.cloud</span></p>
@@ -301,6 +298,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const setWallet = useMinerStore((s) => s.setWallet);
   const setPoolUrl = useMinerStore((s) => s.setPoolUrl);
   const setDonateLevel = useMinerStore((s) => s.setDonateLevel);
+  const setManualPoolSelection = useMinerStore((s) => s.setManualPoolSelection);
 
   const [localWallet, setLocalWallet] = useState(wallet);
   const [localPool, setLocalPool] = useState(poolUrl);
@@ -315,7 +313,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   );
 
   const presetPools = [
-    { name: 'MineBench Pool (Primary)', url: 'xmr.minebench.cloud:32599' },
+    { name: 'MineBench Pool (Primary)', url: 'xmr.minebench.cloud:31651' },
     { name: 'MineBench Pool (Reserve)', url: 'xmr2.minebench.cloud:31915' },
     { name: 'SupportXMR', url: 'pool.supportxmr.com:3333' },
     { name: 'MoneroOcean', url: 'gulf.moneroocean.stream:10032' },
@@ -329,6 +327,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
       setWallet(localWallet.trim());
       setPoolUrl(localPool.trim());
       setDonateLevel(Math.max(0, Math.min(5, Math.round(localDonate))));
+      setManualPoolSelection(true); // Enable manual override
     } finally {
       setSaving(false);
     }
@@ -376,7 +375,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         <input
           value={localPool}
           onChange={(e) => setLocalPool(e.target.value)}
-          placeholder="host:port (e.g., xmr.minebench.cloud:32599)"
+          placeholder="host:port (e.g., xmr.minebench.cloud:31651)"
           className={cn(
             'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
             theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'

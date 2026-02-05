@@ -10,10 +10,20 @@ import { DeveloperSettings } from './DeveloperSettings';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme } = useTheme();
-  const { sessionRewards, status, pools } = useMinerStore();
+  const { sessionRewards, status, pools, poolNetworkHashrate, poolMinersCount, xmrUsd, bmtUsd, rateXmrBmt } = useMinerStore();
   const poolLabels: Record<string, string> = {
     'cpu': 'CPU Primary',
-    'cpu-backup': 'CPU Reserve NODE'
+    'cpu-backup': 'CPU Reserve'
+  };
+
+  // Format hashrate function
+  const formatHashrate = (hashrate: number): string => {
+    if (hashrate === 0) return '0.00 H/s';
+    if (hashrate < 1000) return `${hashrate.toFixed(2)} H/s`;
+    if (hashrate < 1000000) return `${(hashrate / 1000).toFixed(2)} kH/s`;
+    if (hashrate < 1000000000) return `${(hashrate / 1000000).toFixed(2)} MH/s`;
+    if (hashrate < 1000000000000) return `${(hashrate / 1000000000).toFixed(2)} GH/s`;
+    return `${(hashrate / 1000000000000).toFixed(2)} TH/s`;
   };
 
   return (
@@ -30,7 +40,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
           ? 'border-zinc-300 bg-zinc-100'
           : 'border-white/5 bg-zinc-900/50 backdrop-blur-xl'
       )}>
-        <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
+        <div className="flex-1 overflow-y-auto sidebar-scrollbar space-y-6">
            <div className="flex items-center gap-3 px-2 mt-2">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
                 {/* Use relative path so it works with file:// protocol in packaged app */}
@@ -148,11 +158,19 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                     {status === 'running' ? 'System Active' : 'System Idle'}
                 </span>
             </div>
-            <div className={cn("font-mono text-sm",
-              theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'
-            )}>
-                <span className={cn("mr-2", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>NET_HASH:</span>
-                0.00 H/s
+            <div className="flex items-center gap-4">
+                <div className={cn("font-mono text-sm",
+                  theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'
+                )}>
+                    <span className={cn("mr-2", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>NET_HASH:</span>
+                    {formatHashrate(poolNetworkHashrate)}
+                </div>
+                <div className={cn("font-mono text-sm",
+                  theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'
+                )}>
+                    <span className={cn("mr-2", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>MINERS:</span>
+                    {poolMinersCount}
+                </div>
             </div>
          </header>
 

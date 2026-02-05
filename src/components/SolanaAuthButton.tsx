@@ -3,6 +3,7 @@ import { Wallet, LogOut, Loader, AlertCircle, CheckCircle } from 'lucide-react';
 import { useSolanaAuth, SolanaAuthService } from '../services/solanaAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { useWalletAuthUrl } from '../hooks/useEnvironment';
+import { getEnvironmentConfig } from '../config/environment';
 import { cn } from '../lib/utils';
 
 export const SolanaAuthButton: React.FC = () => {
@@ -12,7 +13,7 @@ export const SolanaAuthButton: React.FC = () => {
   const [bmtBalance, setBmtBalance] = useState<number | null>(null);
   const [balLoading, setBalLoading] = useState(false);
   const [balError, setBalError] = useState<string | null>(null);
-  const tokenMint = '67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev';
+  const tokenMint = getEnvironmentConfig().bmtTokenMint;
 
   // Fetch SPL token balance for BMT mint on Solana mainnet
   useEffect(() => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getEnvironmentConfig } from '../config/environment';
 
 interface ClaimRewardsModalProps {
   isOpen: boolean;
@@ -55,7 +56,8 @@ export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
 
     try {
       // Call backend API to create withdrawal request
-      const response = await fetch('https://backend.minebench.cloud/api/withdraw', {
+      const apiBase = getEnvironmentConfig().apiBaseUrl;
+      const response = await fetch(`${apiBase}/withdraw`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
