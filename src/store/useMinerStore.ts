@@ -79,6 +79,7 @@ interface MiningState {
     setMode: (mode: AppMode) => void;
     setDeviceType: (type: DeviceType) => void;
     setWallet: (wallet: string) => void;
+    setWorkerName: (workerName: string) => void;
     setWalletVerified: (verified: boolean, solanaKey?: string) => void;
     setStatus: (status: MiningState['status']) => void;
     setThreads: (threads: number) => void;
@@ -116,7 +117,7 @@ interface MinerSettings {
     manualPoolSelection: boolean;
 }
 
-export const useMinerStore = create<MiningState>((set) => ({
+export const useMinerStore = create<MiningState>((set, get) => ({
     mode: 'benchmark',
     deviceType: 'cpu',
     wallet: '48ghPqjkJYEKAL1ukr9YmB6B8V1g9kjMrFkrP36ZnVLxHRyFs9odvapQtjFkWRyjsG1N3ipHqiByjHUNrDZTsxG2DRRHWjj',
@@ -168,6 +169,7 @@ export const useMinerStore = create<MiningState>((set) => ({
     setMode: (mode) => set({ mode }),
     setDeviceType: (deviceType) => set({ deviceType }),
     setWallet: (wallet) => set({ wallet }),
+    setWorkerName: (workerName) => set({ workerName }),
     setWalletVerified: (verified, solanaKey) => set({ walletVerified: verified, solanaPublicKey: solanaKey }),
     setStatus: (status) => set({ status, isRunning: status === 'running', isPaused: status === 'paused' }),
     setThreads: (threads) => set({ threads }),
@@ -236,7 +238,8 @@ export const useMinerStore = create<MiningState>((set) => ({
         status: 'idle'
     }),
 
-    saveSettings: () => set((state) => {
+    saveSettings: () => {
+        const state = get();
         const settings: MinerSettings = {
             wallet: state.wallet,
             workerName: state.workerName,
@@ -265,32 +268,46 @@ export const useMinerStore = create<MiningState>((set) => ({
         } catch (err) {
             console.error('Failed to save miner settings:', err);
         }
+    },
 
-        return state;
-    }),
+    loadSettings: async () => {
+        const state = get();
+        let settings: MinerSettings | null = null;
 
-    loadSettings: () => set((state) => {
         try {
-            const saved = localStorage.getItem('minerSettings');
-            if (saved) {
-                const settings: MinerSettings = JSON.parse(saved);
-                return {
-                    wallet: settings.wallet || state.wallet,
-                    workerName: settings.workerName || state.workerName,
-                    threads: settings.threads || state.threads,
-                    donateLevel: settings.donateLevel ?? state.donateLevel,
-                    poolUrl: settings.poolUrl || state.poolUrl,
-                    cpuPriority: settings.cpuPriority ?? state.cpuPriority,
-                    randomxMode: settings.randomxMode || state.randomxMode,
-                    hugePages: settings.hugePages ?? state.hugePages,
-                    deviceType: settings.deviceType || state.deviceType,
-                    manualPoolSelection: settings.manualPoolSelection ?? state.manualPoolSelection
-                };
+            if (window.electron?.invoke) {
+                const res = await window.electron.invoke('load-miner-settings');
+                if (res?.success && res.settings) {
+                    settings = res.settings as MinerSettings;
+                }
             }
         } catch (err) {
-            console.error('Failed to load miner settings:', err);
+            console.error('Failed to load miner settings from Electron:', err);
         }
 
-        return state;
-    })
+        if (!settings) {
+            try {
+                const saved = localStorage.getItem('minerSettings');
+                if (saved) settings = JSON.parse(saved) as MinerSettings;
+            } catch (err) {
+                console.error('Failed to load miner settings from localStorage:', err);
+            }
+        }
+
+        if (!settings) return;
+
+        set({
+            wallet: settings.wallet || state.wallet,
+            workerName: settings.workerName || state.workerName,
+            threads: settings.threads || state.threads,
+            donateLevel: settings.donateLevel ?? state.donateLevel,
+            poolUrl: settings.poolUrl || state.poolUrl,
+            cpuPriority: settings.cpuPriority ?? state.cpuPriority,
+            randomxMode: settings.randomxMode || state.randomxMode,
+            hugePages: settings.hugePages ?? state.hugePages,
+            deviceType: settings.deviceType || state.deviceType,
+            manualPoolSelection: settings.manualPoolSelection ?? state.manualPoolSelection
+        });
+    }
 }));
+

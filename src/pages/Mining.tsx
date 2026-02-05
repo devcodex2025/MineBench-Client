@@ -82,7 +82,7 @@ const Mining: React.FC = () => {
     const wallet = useMinerStore((state) => state.wallet);
     const setWallet = useMinerStore((state) => state.setWallet);
     const workerName = useMinerStore((state) => state.workerName);
-    const setWorkerName = useMinerStore((state) => state.workerName); // Will be updated in useEffect
+    const setWorkerName = useMinerStore((state) => state.setWorkerName);
     const donateLevel = useMinerStore((state) => state.donateLevel);
     const setDonateLevel = useMinerStore((state) => state.setDonateLevel);
     const poolUrl = useMinerStore((state) => state.poolUrl);
@@ -152,6 +152,7 @@ const Mining: React.FC = () => {
     const [rateXmrBmt, setRateXmrBmt] = useState(0);
     const [bmtBalance, setBmtBalance] = useState(0);
     const [walletValid, setWalletValid] = useState(false);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     // Load CPU info
     useEffect(() => {
@@ -169,8 +170,16 @@ const Mining: React.FC = () => {
 
     // Load miner settings from localStorage/Electron on component mount
     useEffect(() => {
-        loadSettings();
-        console.log('⚙️ Miner settings loaded from storage');
+        let mounted = true;
+        (async () => {
+            await loadSettings();
+            if (mounted) setSettingsLoaded(true);
+            console.log('⚙️ Miner settings loaded from storage');
+        })();
+
+        return () => {
+            mounted = false;
+        };
     }, [loadSettings]);
 
     // Validate wallet address
@@ -181,12 +190,14 @@ const Mining: React.FC = () => {
 
     // Save settings whenever they change
     useEffect(() => {
+        if (!settingsLoaded) return;
+
         const timer = setTimeout(() => {
             saveSettings();
         }, 500); // Debounce saves by 500ms to avoid too frequent I/O
 
         return () => clearTimeout(timer);
-    }, [wallet, workerName, threads, cpuPriority, randomxMode, hugePages, donateLevel, poolUrl, deviceType, saveSettings]);
+    }, [settingsLoaded, wallet, workerName, threads, cpuPriority, randomxMode, hugePages, donateLevel, poolUrl, deviceType, saveSettings]);
 
     // Load system stats - OPTIMIZED to reduce frequency
     useEffect(() => {
@@ -251,13 +262,25 @@ const Mining: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (status === 'idle') return;
+        const shouldPoll = status === 'running' || status === 'starting';
+
+        if (!shouldPoll) {
+            if (statsIntervalRef.current) {
+                clearInterval(statsIntervalRef.current);
+                statsIntervalRef.current = null;
+            }
+            return;
+        }
+
         // Increase interval from 3.5s to 5s to reduce network load and UI updates
         statsIntervalRef.current = setInterval(fetchStats, 5000);
         // Call immediately for quicker initial response
         fetchStats();
         return () => {
-            if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+            if (statsIntervalRef.current) {
+                clearInterval(statsIntervalRef.current);
+                statsIntervalRef.current = null;
+            }
         };
     }, [status, deviceType]);
 
@@ -314,9 +337,21 @@ const Mining: React.FC = () => {
                 if (!res.ok) throw new Error(`rates/current HTTP ${res.status}`);
                 const data = await res.json();
 
-                const nextXmrUsd = Number(data?.xmr_usd || 0);
-                const nextBmtUsd = Number(data?.bmt_usd || 0);
-                const nextRate = Number(data?.rate_xmr_bmt || 0);
+                const toNumber = (value: any) => {
+                    if (value === null || value === undefined) return 0;
+                    const num = Number(String(value).replace(/,/g, ''));
+                    return Number.isFinite(num) ? num : 0;
+                };
+
+                const nextXmrUsd = toNumber(
+                    data?.xmr_usd ?? data?.xmrUsd ?? data?.xmr_usd_price ?? data?.xmr_price_usd
+                );
+                const nextBmtUsd = toNumber(
+                    data?.bmt_usd ?? data?.bmtUsd ?? data?.bmt_usd_price ?? data?.bmt_price_usd
+                );
+                const nextRate = toNumber(
+                    data?.rate_xmr_bmt ?? data?.rateXmrBmt ?? data?.xmr_bmt_rate
+                );
 
                 setXmrUsd(Number.isFinite(nextXmrUsd) ? nextXmrUsd : 0);
                 setBmtUsd(Number.isFinite(nextBmtUsd) ? nextBmtUsd : 0);
@@ -398,6 +433,8 @@ const Mining: React.FC = () => {
     };
 
     const fetchStats = async () => {
+        const shouldPoll = status === 'running' || status === 'starting';
+        if (!shouldPoll) return;
         try {
             // Determine which xmrig API endpoint to use based on miner version
             // Standard (v6.21) and Compat (v6.14) use /2/summary (or /api/v1/summary)
@@ -994,3 +1031,5 @@ const MetricCard = React.memo(({ label, value, icon, color, theme }: { label: st
 MetricCard.displayName = 'MetricCard';
 
 export default Mining;
+
+

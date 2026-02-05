@@ -7,8 +7,8 @@ import { useEnvironment } from '../hooks/useEnvironment';
 
 // Version from build-time define
 declare const __APP_VERSION__: string;
-const APP_VERSION = __APP_VERSION__ || '0.4.6';
-const LATEST_VERSION = '0.4.6';
+const APP_VERSION = __APP_VERSION__ || '0.5.3';
+const LATEST_VERSION = APP_VERSION;
 
 export const Settings = () => {
   const { theme, toggleTheme } = useTheme();
@@ -116,7 +116,7 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Updates Section */}
+      {/* Updates Section (temporarily disabled)
       <div className={cardClass}>
         <div className="flex items-start gap-3 mb-4">
           <Download size={20} className={cn("mt-1 flex-shrink-0", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')} />
@@ -186,6 +186,7 @@ export const Settings = () => {
 
         </div>
       </div>
+      */}
 
       {/* Other Settings */}
       <div className={cardClass}>
@@ -246,20 +247,19 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Mining Configuration */}
-      {true && (
-        <div className={cardClass}>
-          <div className="flex items-start gap-3 mb-4">
-            <SettingsIcon size={20} className="text-yellow-400 mt-1 flex-shrink-0" />
-            <div className="flex-1">
-              <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Mining Configuration</h2>
-              <p className={cn("mt-1", textClass)}>Set your wallet and preferred pool</p>
-            </div>
+      {/* Mining Configuration (disabled for now)
+      <div className={cardClass}>
+        <div className="flex items-start gap-3 mb-4">
+          <SettingsIcon size={20} className="text-yellow-400 mt-1 flex-shrink-0" />
+          <div className="flex-1">
+            <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Mining Configuration</h2>
+            <p className={cn("mt-1", textClass)}>Set your wallet and preferred pool</p>
           </div>
-
-          <MiningConfigForm theme={theme} />
         </div>
-      )}
+
+        <MiningConfigForm theme={theme} />
+      </div>
+      */}
 
       {/* About Section */}
       <div className={cardClass}>
@@ -273,6 +273,20 @@ export const Settings = () => {
           <div className="pt-4 space-y-2 text-xs">
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>License:</span> MIT</p>
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Website:</span> <span className="text-blue-400">minebench.cloud</span></p>
+            <p>
+              <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Discord:</span>{' '}
+              <a className="text-blue-400" href="https://discord.gg/vsDyYh4rma" target="_blank" rel="noreferrer">
+                discord.gg/vsDyYh4rma
+              </a>{' '}
+              — тут можна долучитись до спільноти, отримати технічну консультацію і т.д
+            </p>
+            <p>
+              <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Twitter/X:</span>{' '}
+              <a className="text-blue-400" href="https://x.com/MineBenchdapp" target="_blank" rel="noreferrer">
+                x.com/MineBenchdapp
+              </a>{' '}
+              — тут відображаються новини про додаток
+            </p>
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Platform Support:</span> Windows, macOS, Linux (with Wayland support)</p>
           </div>
         </div>

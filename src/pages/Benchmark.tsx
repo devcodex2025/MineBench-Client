@@ -330,7 +330,6 @@ const Benchmark = () => {
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                    <p className="text-zinc-500 text-sm">Mining to MineBench application wallet.</p>
                                         <div className={cn("p-1 rounded-lg border flex gap-1",
                                             theme === 'light'
                                                 ? 'bg-white border-zinc-200'
