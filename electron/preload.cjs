@@ -19,8 +19,24 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.on("miner-exit", callback);
     return () => ipcRenderer.removeListener("miner-exit", callback);
   },
+  onMinerInfo: (callback) => {
+    ipcRenderer.on("miner-info", (event, data) => callback(data));
+    return () => ipcRenderer.removeListener("miner-info", callback);
+  },
+  onMinerStart: (callback) => {
+    ipcRenderer.on("miner-start", (event, data) => callback(data));
+    return () => ipcRenderer.removeListener("miner-start", callback);
+  },
+  onMinerIncident: (callback) => {
+    ipcRenderer.on("miner-incident", (event, data) => callback(data));
+    return () => ipcRenderer.removeListener("miner-incident", callback);
+  },
   // Get display/environment status
   getDisplayStatus: () => ipcRenderer.invoke('get-display-status'),
+  
+  // Log to system log file from renderer process
+  logToFile: (level, message, source = 'UI') => 
+    ipcRenderer.invoke('log-to-file', { level, message, source }),
   
   // Solana wallet IPC - expose ipcRenderer for wallet operations
   ipcRenderer: {

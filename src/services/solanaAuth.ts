@@ -5,6 +5,9 @@
 
 import { create } from 'zustand';
 import { PublicKey } from '@solana/web3.js';
+import { useMinerStore } from '../store/useMinerStore';
+
+const API_BASE_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_URL || 'https://backend.minebench.cloud/api');
 
 export interface SolanaUser {
   publicKey: string;
@@ -41,14 +44,14 @@ interface SolanaAuthState {
   user: SolanaUser | null;
   isConnected: boolean;
   isConnecting: boolean;
-  
+
   // Mining stats
   miningStats: UserMiningStats | null;
   statsLoading: boolean;
-  
+
   // Multi-device
   devices: MiningDevice[];
-  
+
   // Actions
   setUser: (user: SolanaUser | null) => void;
   setConnecting: (loading: boolean) => void;
@@ -56,7 +59,7 @@ interface SolanaAuthState {
   addDevice: (device: MiningDevice) => void;
   updateDevice: (id: string, updates: Partial<MiningDevice>) => void;
   removeDevice: (id: string) => void;
-  
+
   // Logout
   disconnect: () => void;
 }
@@ -116,7 +119,7 @@ export const useSolanaAuth = create<SolanaAuthState>((set) => ({
 export class SolanaAuthService {
   private static instance: SolanaAuthService;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): SolanaAuthService {
     if (!SolanaAuthService.instance) {
@@ -141,9 +144,9 @@ export class SolanaAuthService {
       if (window.electron?.ipcRenderer) {
         console.log('[SolanaAuth] Using Electron IPC flow');
         const result = await window.electron.ipcRenderer.invoke('solana-connect-wallet');
-        
+
         console.log('[SolanaAuth] Received result from IPC:', result);
-        
+
         if (!result.publicKey || !result.signature) {
           throw new Error('Invalid authentication response from browser');
         }
@@ -160,6 +163,17 @@ export class SolanaAuthService {
         useSolanaAuth.getState().setUser(user);
         localStorage.setItem('minebench_user', JSON.stringify(user));
         localStorage.setItem('minebench_signature', result.signature);
+
+        // Standard message used for signing (keep in sync with backend logic)
+        const message = "MineBench Authentication Hook: " + result.publicKey;
+
+        // Exchange for JWT
+        try {
+          await this.login(result.publicKey, result.signature, message);
+        } catch (e) {
+          console.error('[SolanaAuth] Login failed:', e);
+          // Non-fatal, just means backend-synced features won't work
+        }
 
         console.log('[SolanaAuth] User authenticated successfully');
         return user;
@@ -227,6 +241,40 @@ export class SolanaAuthService {
   }
 
   /**
+   * Login with backend using wallet signature
+   */
+  async login(walletAddress: string, signature: string, message: string): Promise<string> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          walletAddress,
+          signature,
+          message
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Login failed: ${response.statusText}`);
+      }
+
+      const { token } = await response.json();
+      localStorage.setItem('minebench_auth_token', token);
+
+      // Fetch stats immediately after login
+      await this.fetchMiningStats(walletAddress);
+
+      return token;
+    } catch (err) {
+      console.error('[SolanaAuth] Login error:', err);
+      throw err;
+    }
+  }
+
+  /**
    * Повідомити гаманець про підключення пристрою
    */
   async registerDevice(device: MiningDevice): Promise<void> {
@@ -269,21 +317,37 @@ export class SolanaAuthService {
    */
   async fetchMiningStats(publicKey: string): Promise<UserMiningStats> {
     try {
-      useSolanaAuth.getState().setMiningStats({
-        totalRewards: 0,
-        thisMonth: 0,
-        thisWeek: 0,
-        today: 0,
-        devices: useSolanaAuth.getState().devices,
-        poolBalance: 0,
-        totalBlocks: 0
+      const storedToken = localStorage.getItem('minebench_auth_token');
+
+      // If we don't have a token, we might need to login
+      if (!storedToken) {
+        console.log('[SolanaAuth] No session token found, using guest stats');
+        return this.getEmptyStats();
+      }
+
+      const response = await fetch(`${API_BASE_URL}/ledger/balance`, {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`
+        }
       });
 
-      // TODO: Інтегрувати з реальним API для отримання статистики
-      // На разі повертаємо пусті дані
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('[SolanaAuth] Session expired');
+          localStorage.removeItem('minebench_auth_token');
+        }
+        return this.getEmptyStats();
+      }
+
+      const balanceData = await response.json();
+      // balanceData typically looks like { user_id, balance, currency, updated_at }
+      const bmtBalance = balanceData?.balance || 0;
+
+      // Update miner store with confirmed balance
+      useMinerStore.getState().setDbTotalBMT(bmtBalance);
 
       const stats: UserMiningStats = {
-        totalRewards: 0,
+        totalRewards: bmtBalance,
         thisMonth: 0,
         thisWeek: 0,
         today: 0,
@@ -296,8 +360,20 @@ export class SolanaAuthService {
       return stats;
     } catch (err) {
       console.error('[SolanaAuth] Failed to fetch mining stats:', err);
-      throw err;
+      return this.getEmptyStats();
     }
+  }
+
+  private getEmptyStats(): UserMiningStats {
+    return {
+      totalRewards: 0,
+      thisMonth: 0,
+      thisWeek: 0,
+      today: 0,
+      devices: useSolanaAuth.getState().devices,
+      poolBalance: 0,
+      totalBlocks: 0
+    };
   }
 
   /**

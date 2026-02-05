@@ -11,7 +11,7 @@ body {
   overflow: hidden; /* App handles scrolling */
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar for main content (neutral dark) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -24,4 +24,25 @@ body {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #444;
+}
+
+/* Branded scrollbar for sidebar (yellow/emerald theme) */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  /* Darker graphite thumb for Firefox */
+  scrollbar-color: #1f2933 transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  /* Dark graphite gradient */
+  background-image: linear-gradient(to bottom, #374151, #111827);
+  border-radius: 9999px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(to bottom, #4b5563, #020617);
 }

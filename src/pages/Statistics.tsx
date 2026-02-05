@@ -113,6 +113,9 @@ export const MiningStatistics: React.FC = () => {
   const currentHashrate = useMinerStore(state => state.currentHashrate);
   const totalRewards = useMinerStore(state => state.totalRewards);
   const history = useMinerStore(state => state.history);
+  const poolHashrateTotal = useMinerStore(state => state.poolHashrateTotal);
+  const poolMinersCount = useMinerStore(state => state.poolMinersCount);
+  const safeTotalRewards = Number.isFinite(totalRewards) ? totalRewards : 0;
 
   // Build reward history from live miner history (no mocks)
   const rewardHistory = useMemo<RewardData[]>(() => {
@@ -206,7 +209,7 @@ export const MiningStatistics: React.FC = () => {
         <StatCard
           icon={<Award className="w-5 h-5" />}
           title="Total Rewards"
-          value={`${totalRewards.toFixed(4)} $BMT`}
+          value={`${safeTotalRewards.toFixed(4)} $BMT`}
           subtitle={undefined}
           trend={12.5}
           theme={theme}
@@ -232,6 +235,13 @@ export const MiningStatistics: React.FC = () => {
           value={`${useMinerStore.getState().pools['cpu']?.progress.toFixed(1) || 0}%`}
           subtitle={useMinerStore.getState().pools['cpu']?.isSynced ? 'Ready' : 'Syncing'}
           trend={-2.1}
+          theme={theme}
+        />
+        <StatCard
+          icon={<TrendingUp className="w-5 h-5 text-blue-400" />}
+          title="Pool Performance"
+          value={formatHashrate(poolHashrateTotal)}
+          subtitle={`${poolMinersCount} Miners Active`}
           theme={theme}
         />
       </div>
@@ -372,7 +382,7 @@ export const MiningStatistics: React.FC = () => {
                     'text-xs',
                     theme === 'light' ? 'text-zinc-500' : 'text-zinc-400'
                   )}>
-                    {device.totalRewards.toFixed(4)} XMR
+                    {(Number.isFinite(device.totalRewards) ? device.totalRewards : 0).toFixed(4)} XMR
                   </p>
                 </div>
               </div>

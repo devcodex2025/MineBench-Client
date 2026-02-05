@@ -2,9 +2,19 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Play, Square, Pause, Play as PlayIcon, Flame, Gauge, Zap, Shield, Cpu, TrendingUp, Clock, Activity, Thermometer, HardDrive, Info } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
+import { useSolanaAuth } from '../services/solanaAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, formatHashrate } from '../lib/utils';
 import { p2poolAPI } from '../services/p2poolAPI';
+import { getEnvironmentConfig } from '../config/environment';
+
+// Extend window type for API error logging
+declare global {
+    interface Window {
+        __apiErrorLogged?: boolean;
+        __apiConnected?: string; // Track which endpoint is connected
+    }
+}
 
 // Chart component for hashrate visualization - MEMOIZED to prevent re-renders
 const HashRateChart: React.FC<{ data: any[]; theme: string }> = React.memo(({ data, theme }) => (
@@ -30,28 +40,28 @@ const HashRateChart: React.FC<{ data: any[]; theme: string }> = React.memo(({ da
                 <AreaChart data={data}>
                     <defs>
                         <linearGradient id="colorHashrate" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? '#e4e4e7' : '#27272a'} />
                     <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke={theme === 'light' ? '#71717a' : '#a1a1aa'} />
                     <YAxis tick={{ fontSize: 12 }} stroke={theme === 'light' ? '#71717a' : '#a1a1aa'} />
-                    <Tooltip 
-                        contentStyle={{ 
+                    <Tooltip
+                        contentStyle={{
                             backgroundColor: theme === 'light' ? '#fafafa' : '#18181b',
                             border: `1px solid ${theme === 'light' ? '#e4e4e7' : '#27272a'}`,
                             borderRadius: '8px'
                         }}
                         formatter={(value) => [formatHashrate(value as number), 'H/s']}
                     />
-                    <Area 
-                        type="monotone" 
-                        dataKey="hashrate" 
-                        stroke="#10b981" 
+                    <Area
+                        type="monotone"
+                        dataKey="hashrate"
+                        stroke="#10b981"
                         strokeWidth={3}
-                        fillOpacity={1} 
-                        fill="url(#colorHashrate)" 
+                        fillOpacity={1}
+                        fill="url(#colorHashrate)"
                     />
                 </AreaChart>
             </ResponsiveContainer>
@@ -63,6 +73,7 @@ HashRateChart.displayName = 'HashRateChart';
 
 const Mining: React.FC = () => {
     const { theme } = useTheme();
+    const { user } = useSolanaAuth(); // Get Solana user for BMT rewards
     const status = useMinerStore((state) => state.status);
     const setStatus = useMinerStore((state) => state.setStatus);
     const addLog = useMinerStore((state) => state.addLog);
@@ -83,9 +94,10 @@ const Mining: React.FC = () => {
     const currentPower = useMinerStore((state) => state.currentPower);
     const resetSession = useMinerStore((state) => state.resetSession);
     const pools = useMinerStore((state) => state.pools);
+    const setGlobalPoolStats = useMinerStore((state) => state.setGlobalPoolStats);
     const loadSettings = useMinerStore((state) => state.loadSettings);
     const saveSettings = useMinerStore((state) => state.saveSettings);
-    
+
     const threads = useMinerStore((state) => state.threads);
     const setThreads = useMinerStore((state) => state.setThreads);
     const cpuName = useMinerStore((state) => state.cpuName);
@@ -101,10 +113,18 @@ const Mining: React.FC = () => {
     const setHugePages = useMinerStore((state) => state.setHugePages);
 
     // System resource monitoring
-    const [systemStats, setSystemStats] = useState({
-        cpuUsage: 0,
-        ramUsage: 0,
-        ramTotal: 0
+    const [systemStats, setSystemStats] = useState<{
+        cpuUsage: number | null;
+        ramUsage: number | null;
+        ramTotal: number | null;
+        hasCpuData: boolean;
+        hasRamData: boolean;
+    }>({
+        cpuUsage: null,
+        ramUsage: null,
+        ramTotal: null,
+        hasCpuData: false,
+        hasRamData: false
     });
     const [showHugePagesInfo, setShowHugePagesInfo] = useState(false);
 
@@ -117,10 +137,19 @@ const Mining: React.FC = () => {
     const primaryPool = pools?.['cpu'];
     const reservePool = pools?.['cpu-backup'];
     const isNodeFullySynced = !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9));
+    
+    // Get global pool stats from store
+    const poolHashrateTotal = useMinerStore((state) => state.poolHashrateTotal);
+    const poolMinersCount = useMinerStore((state) => state.poolMinersCount);
+    const setPoolNetworkHashrateStore = useMinerStore((state) => state.setPoolNetworkHashrate);
+    const setExchangeRates = useMinerStore((state) => state.setExchangeRates);
+    const ratesLastUpdated = useMinerStore((state) => state.ratesLastUpdated);
 
     // Wallet balance and rewards
     const [xmrBalance, setXmrBalance] = useState(0);
-    const [xmrPrice, setXmrPrice] = useState(0);
+    const [xmrUsd, setXmrUsd] = useState(0);
+    const [bmtUsd, setBmtUsd] = useState(0);
+    const [rateXmrBmt, setRateXmrBmt] = useState(0);
     const [bmtBalance, setBmtBalance] = useState(0);
     const [walletValid, setWalletValid] = useState(false);
 
@@ -164,11 +193,32 @@ const Mining: React.FC = () => {
         const loadSystemStats = async () => {
             try {
                 const stats = await window.electron.invoke('get-system-stats');
-                if (stats) {
-                    setSystemStats(stats);
-                }
+                const cpu = typeof stats?.cpuUsage === 'number' ? stats.cpuUsage : null;
+                const ramUsage = typeof stats?.ramUsage === 'number' ? stats.ramUsage : null;
+                const ramTotal = typeof stats?.ramTotal === 'number' ? stats.ramTotal : null;
+
+                const hasCpuData = cpu !== null && Number.isFinite(cpu) && cpu >= 0 && cpu <= 100;
+                const hasRamData =
+                    ramUsage !== null && ramTotal !== null &&
+                    Number.isFinite(ramUsage) && Number.isFinite(ramTotal) &&
+                    ramTotal > 0 && ramUsage >= 0;
+
+                setSystemStats({
+                    cpuUsage: hasCpuData ? cpu : null,
+                    ramUsage: hasRamData ? ramUsage : null,
+                    ramTotal: hasRamData ? ramTotal : null,
+                    hasCpuData,
+                    hasRamData
+                });
             } catch (err) {
                 // Silently fail - system stats not critical
+                setSystemStats({
+                    cpuUsage: null,
+                    ramUsage: null,
+                    ramTotal: null,
+                    hasCpuData: false,
+                    hasRamData: false
+                });
             }
         };
         loadSystemStats();
@@ -216,10 +266,16 @@ const Mining: React.FC = () => {
         const fetchPoolStats = async () => {
             try {
                 const stats = await p2poolAPI.getPoolStats();
+                
                 if (stats && stats.poolDifficulty) {
                     // Calculate network hashrate from difficulty
+                    // Monero: difficulty = hashrate * 120 (block time in seconds)
                     const networkHashrate = stats.poolDifficulty / 120;
                     setPoolNetworkHashrate(networkHashrate);
+                    setPoolNetworkHashrateStore(networkHashrate);
+
+                    // Update global pool stats in store
+                    setGlobalPoolStats(stats.poolHashrate || 0, stats.miners || 0, networkHashrate);
                 }
             } catch (err) {
                 console.warn('[Mining] Failed to fetch pool stats:', err);
@@ -249,27 +305,52 @@ const Mining: React.FC = () => {
         };
     }, [status]);
 
-    // Fetch XMR price and calculate BMT balance - OPTIMIZED to not re-run on every elapsed time change
+    // Fetch rates from backend (XMR USD, BMT USD, XMR->BMT)
     useEffect(() => {
-        const fetchPriceAndBalance = async () => {
+        const fetchRates = async () => {
             try {
-                // Fetch XMR price from CoinGecko
-                const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=monero&vs_currencies=usd', {
-                    signal: AbortSignal.timeout(5000) // 5 second timeout to prevent hanging
-                });
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    const price = priceData.monero?.usd || 0;
-                    setXmrPrice(price);
-                }
+                // Use relative URL for Vite proxy in development
+                const res = await fetch('/api/rates/current', { signal: AbortSignal.timeout(6000) });
+                if (!res.ok) throw new Error(`rates/current HTTP ${res.status}`);
+                const data = await res.json();
+
+                const nextXmrUsd = Number(data?.xmr_usd || 0);
+                const nextBmtUsd = Number(data?.bmt_usd || 0);
+                const nextRate = Number(data?.rate_xmr_bmt || 0);
+
+                setXmrUsd(Number.isFinite(nextXmrUsd) ? nextXmrUsd : 0);
+                setBmtUsd(Number.isFinite(nextBmtUsd) ? nextBmtUsd : 0);
+                setRateXmrBmt(Number.isFinite(nextRate) ? nextRate : 0);
+                
+                // Save to store for Layout component
+                setExchangeRates(
+                    Number.isFinite(nextXmrUsd) ? nextXmrUsd : 0,
+                    Number.isFinite(nextBmtUsd) ? nextBmtUsd : 0,
+                    Number.isFinite(nextRate) ? nextRate : 0
+                );
             } catch (err) {
-                // Silently fail for price fetch - not critical
+                console.warn('[Mining] Failed to fetch rates from backend:', err);
+                
+                // Use mock data for testing when backend is unavailable
+                const mockXmrUsd = 376.86;
+                const mockBmtUsd = 0.000003519;
+                const mockRate = 107092924;
+                
+                setXmrUsd(mockXmrUsd);
+                setBmtUsd(mockBmtUsd);
+                setRateXmrBmt(mockRate);
+                
+                // Save mock data to store
+                setExchangeRates(mockXmrUsd, mockBmtUsd, mockRate);
             }
         };
 
+        // Fetch immediately on mount
+        fetchRates();
+        
+        // Then fetch periodically when running
         if (status === 'running' || status === 'paused') {
-            fetchPriceAndBalance();
-            const interval = setInterval(fetchPriceAndBalance, 60000); // Update every 60s instead of 30s
+            const interval = setInterval(fetchRates, 60000); // Update every 60s
             return () => clearInterval(interval);
         }
     }, [status]);
@@ -280,29 +361,32 @@ const Mining: React.FC = () => {
             // Estimate reward based on hashrate using P2Pool formula
             // Monero: 1 block every 120 seconds, ~0.6 XMR per block (approximate)
             // Formula: (Your Hashrate / Network Hashrate) * Blocks Per Period * Block Reward
-            
-            const networkHashrate = poolNetworkHashrate / 120; // Average blocks per second
+
+            const networkHashrate = poolNetworkHashrate; // Already calculated from difficulty
             const blockReward = 0.6; // Current Monero block reward (approximate)
-            
+
             // Prevent division by zero
             if (networkHashrate <= 0 || currentHashrate <= 0) {
                 setXmrBalance(0);
                 setBmtBalance(0);
                 return;
             }
-            
+
             const shareOfNetwork = currentHashrate / networkHashrate;
-            
+
             // Calculate rewards for mining duration
             const secondsMined = elapsedTime;
             const blocksMined = (secondsMined / 120) * shareOfNetwork;
             const xmrEarned = blocksMined * blockReward;
-            
+
             setXmrBalance(xmrEarned);
-            const bmtValue = xmrEarned * xmrPrice * 0.8; // 80% after 20% fee
-            setBmtBalance(bmtValue);
+
+            // Convert XMR -> BMT using backend oracle rate (preferred)
+            const rate = Number.isFinite(rateXmrBmt) ? rateXmrBmt : 0;
+            const bmtEarned = rate > 0 ? (xmrEarned * rate * 0.8) : 0; // 80% after 20% fee
+            setBmtBalance(Number.isFinite(bmtEarned) ? bmtEarned : 0);
         }
-    }, [currentHashrate, xmrPrice, status, elapsedTime, poolNetworkHashrate]);
+    }, [currentHashrate, rateXmrBmt, status, elapsedTime, poolNetworkHashrate]);
 
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
@@ -315,28 +399,81 @@ const Mining: React.FC = () => {
 
     const fetchStats = async () => {
         try {
-            const actualUrl = deviceType === 'cpu'
-                ? 'http://127.0.0.1:4077/2/summary'
-                : 'http://127.0.0.1:4067/summary';
+            // Determine which xmrig API endpoint to use based on miner version
+            // Standard (v6.21) and Compat (v6.14) use /2/summary (or /api/v1/summary)
+            // Legacy (v5.11/v6.8) may use /api/stats or /summary
+            let endpoints: string[] = [];
+            if (deviceType === 'cpu') {
+                // Try endpoints in order of preference
+                endpoints = [
+                    'http://127.0.0.1:4077/2/summary',           // v6.14+
+                    'http://127.0.0.1:4077/api/v1/summary',      // Alternative v6.21
+                    'http://127.0.0.1:4077/api/stats',           // v5.11/legacy
+                    'http://127.0.0.1:4077/summary'              // Fallback
+                ];
+            } else {
+                endpoints = [
+                    'http://127.0.0.1:4067/summary',
+                    'http://127.0.0.1:4067/api/v1/summary'
+                ];
+            }
 
-            // Add timeout to prevent hanging requests
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            let data = null;
+            let successUrl = null;
 
-            const res = await fetch(actualUrl, { signal: controller.signal }).catch(() => null);
-            clearTimeout(timeoutId);
-            
-            if (!res || !res.ok) return;
+            // Try each endpoint until one succeeds
+            for (const actualUrl of endpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-            const data = await res.json();
+                    const res = await fetch(actualUrl, { signal: controller.signal }).catch(() => null);
+                    clearTimeout(timeoutId);
+
+                    if (res && res.ok) {
+                        data = await res.json();
+                        successUrl = actualUrl;
+
+                        // Log successful connection once
+                        if (!window.__apiConnected || window.__apiConnected !== actualUrl) {
+                            console.log(`[Mining] ✅ Connected to xmrig API at ${actualUrl}`);
+                            window.electron.invoke('log-to-file', { level: 'info', message: `✅ Connected to xmrig API at ${actualUrl}`, source: 'Mining' });
+                            window.__apiConnected = actualUrl;
+                            window.__apiErrorLogged = false;
+                        }
+                        break;
+                    }
+                } catch (err) {
+                    // Try next endpoint
+                }
+            }
+
+            if (!data) {
+                // All endpoints failed
+                if (!window.__apiErrorLogged) {
+                    const errMsg = `Could not connect to xmrig API. Tried: ${endpoints.join(', ')}`;
+                    console.warn(`[Mining] ${errMsg}`);
+                    window.electron.invoke('log-to-file', { level: 'warn', message: errMsg, source: 'Mining' });
+                    window.__apiErrorLogged = true;
+                }
+                return;
+            }
+
             let hr = 0;
             let temp: number | null = null;
             let power = 0;
 
             if (deviceType === 'cpu') {
-                hr = data.hashrate?.total?.[0] ?? 0;
-                // Update peak hashrate for CPU
-                if (hr > peakHashrate) setPeakHashrate(hr);
+                // Try different hashrate paths for different xmrig versions
+                hr = data.hashrate?.total?.[0] ??
+                    data.hashrate?.current ??
+                    data.hashrate ??
+                    0;
+
+                // Update peak hashrate for CPU (use functional update to avoid stale closure)
+                if (hr > 0) {
+                    setPeakHashrate((prev) => (hr > prev ? hr : prev));
+                }
                 // Fetch CPU temp asynchronously without blocking
                 window.electron.invoke('get-cpu-temp').then((tempRes: any) => {
                     if (tempRes && tempRes.success) {
@@ -354,15 +491,18 @@ const Mining: React.FC = () => {
                 hr = data.gpus[0].hashrate ?? data.gpus[0].hash ?? 0;
                 temp = data.gpus[0].temperature ?? data.gpus[0].temp ?? 0;
                 power = data.gpus[0].power ?? 0;
-                window.electron.invoke('report-stats', { temp, power }).catch(() => {});
+                window.electron.invoke('report-stats', { temp, power }).catch(() => { });
             }
 
             if (hr > 0) {
                 updateStats(hr, temp, power);
-                if (hr > peakHashrate) setPeakHashrate(hr);
+                // Update peak hashrate for GPU / generic path
+                setPeakHashrate((prev) => (hr > prev ? hr : prev));
             }
         } catch (err) {
-            // ignore transient errors
+            const errMsg = `fetchStats error: ${err instanceof Error ? err.message : String(err)}`;
+            console.error(`[Mining] ${errMsg}`);
+            window.electron.invoke('log-to-file', { level: 'error', message: errMsg, source: 'Mining' });
         }
     };
 
@@ -387,6 +527,7 @@ const Mining: React.FC = () => {
                 hugePages,
                 donateLevel,
                 poolUrl,
+                solanaWallet: user?.publicKey, // Raw Solana address (no encoding)
             });
 
             setStatus('starting');
@@ -408,7 +549,7 @@ const Mining: React.FC = () => {
             if (window.electron?.invoke) {
                 await window.electron.invoke('save-miner-logs', {
                     systemLogs: storeLogs,
-                    minerLogs: minerLogs,
+                    minerLogs: storeLogs,
                     sessionType: 'mining',
                     device: deviceType
                 }).catch((err: any) => {
@@ -467,23 +608,23 @@ const Mining: React.FC = () => {
                 {/* Status Badge */}
                 <div className={cn('inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-medium transition-all',
                     status === 'running' ? (theme === 'light' ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400') :
-                    status === 'starting' ? (theme === 'light' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-400') :
-                    status === 'paused' ? (theme === 'light' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-blue-500/40 bg-blue-500/10 text-blue-400') :
-                    status === 'error' ? (theme === 'light' ? 'border-red-300 bg-red-50 text-red-700' : 'border-red-500/30 bg-red-500/10 text-red-400') :
-                    (theme === 'light' ? 'border-zinc-200 bg-zinc-50 text-zinc-600' : 'border-white/10 bg-white/5 text-zinc-400')
+                        status === 'starting' ? (theme === 'light' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-400') :
+                            status === 'paused' ? (theme === 'light' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-blue-500/40 bg-blue-500/10 text-blue-400') :
+                                status === 'error' ? (theme === 'light' ? 'border-red-300 bg-red-50 text-red-700' : 'border-red-500/30 bg-red-500/10 text-red-400') :
+                                    (theme === 'light' ? 'border-zinc-200 bg-zinc-50 text-zinc-600' : 'border-white/10 bg-white/5 text-zinc-400')
                 )}>
                     <span className={cn('w-2 h-2 rounded-full',
                         status === 'running' ? 'bg-emerald-500 animate-pulse' :
-                        status === 'starting' ? 'bg-amber-500 animate-pulse' :
-                        status === 'paused' ? 'bg-blue-500' :
-                        status === 'error' ? 'bg-red-500' : 'bg-zinc-400'
+                            status === 'starting' ? 'bg-amber-500 animate-pulse' :
+                                status === 'paused' ? 'bg-blue-500' :
+                                    status === 'error' ? 'bg-red-500' : 'bg-zinc-400'
                     )}></span>
                     <span>
                         {status === 'running' ? 'Mining' :
-                         status === 'starting' ? 'Connecting' :
-                         status === 'paused' ? 'Paused' :
-                         status === 'completed' ? 'Completed' :
-                         status === 'error' ? 'Error' : 'Idle'}
+                            status === 'starting' ? 'Connecting' :
+                                status === 'paused' ? 'Paused' :
+                                    status === 'completed' ? 'Completed' :
+                                        status === 'error' ? 'Error' : 'Idle'}
                     </span>
                 </div>
             </div>
@@ -552,8 +693,8 @@ const Mining: React.FC = () => {
                                     <span className={cn("text-sm font-mono",
                                         theme === 'light' ? 'text-yellow-600' : 'text-yellow-400'
                                     )}>
-                                        {cpuPriority === 0 ? 'Idle' : 
-                                         cpuPriority === 1 ? 'Low' : 'Normal'}
+                                        {cpuPriority === 0 ? 'Idle' :
+                                            cpuPriority === 1 ? 'Low' : 'Normal'}
                                     </span>
                                 </div>
                                 <input
@@ -662,7 +803,7 @@ const Mining: React.FC = () => {
                         <div className="grid grid-cols-2 gap-2">
                             {!walletValid && status === 'idle' && (
                                 <div className={cn("col-span-2 p-3 rounded-lg text-xs text-center border",
-                                    theme === 'light' 
+                                    theme === 'light'
                                         ? 'bg-red-50 border-red-200 text-red-700'
                                         : 'bg-red-500/10 border-red-500/20 text-red-400'
                                 )}>
@@ -690,10 +831,10 @@ const Mining: React.FC = () => {
                                             : 'bg-emerald-500 text-zinc-950 border-2 border-emerald-500 hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20')
                                 )}
                             >
-                                {status === 'running' ? <><Square size={16} className="fill-current" /> Stop</> : 
-                                 status === 'starting' ? <><Activity size={16} className="animate-spin" /> Connecting</> :
-                                 status === 'paused' ? <><PlayIcon size={16} className="fill-current" /> Resume</> :
-                                 <><Play size={16} className="fill-current" /> Start</>}
+                                {status === 'running' ? <><Square size={16} className="fill-current" /> Stop</> :
+                                    status === 'starting' ? <><Activity size={16} className="animate-spin" /> Connecting</> :
+                                        status === 'paused' ? <><PlayIcon size={16} className="fill-current" /> Resume</> :
+                                            <><Play size={16} className="fill-current" /> Start</>}
                             </button>
 
                             <button
@@ -704,10 +845,10 @@ const Mining: React.FC = () => {
                                     status === 'paused'
                                         ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
                                         : status === 'running'
-                                        ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
-                                        : (theme === 'light'
-                                            ? 'bg-zinc-200 text-zinc-500 border-2 border-zinc-200'
-                                            : 'bg-zinc-800 text-zinc-600 border-2 border-zinc-800')
+                                            ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
+                                            : (theme === 'light'
+                                                ? 'bg-zinc-200 text-zinc-500 border-2 border-zinc-200'
+                                                : 'bg-zinc-800 text-zinc-600 border-2 border-zinc-800')
                                 )}
                             >
                                 {status === 'paused' ? <><PlayIcon size={16} className="fill-current" /> Resume</> : <><Pause size={16} className="fill-current" /> Pause</>}
@@ -716,54 +857,60 @@ const Mining: React.FC = () => {
                     </div>
 
                     {/* System Resource Monitor */}
-                    <div className={cn("border rounded-xl p-5 space-y-3",
-                        theme === 'light'
-                            ? 'bg-white border-zinc-200'
-                            : 'bg-zinc-900/50 border-white/10'
-                    )}>
-                        <div className={cn("flex items-center gap-2 text-xs font-semibold uppercase tracking-wider",
-                            theme === 'light' ? 'text-yellow-600' : 'text-yellow-400'
+                    {(systemStats.hasCpuData || systemStats.hasRamData) && (
+                        <div className={cn("border rounded-xl p-5 space-y-3",
+                            theme === 'light'
+                                ? 'bg-white border-zinc-200'
+                                : 'bg-zinc-900/50 border-white/10'
                         )}>
-                            <HardDrive size={14} />
-                            System Resources
-                        </div>
-                        
-                        {/* CPU Usage */}
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
-                                    CPU Load
-                                </div>
-                                <div className={cn("text-sm font-bold", theme === 'light' ? 'text-yellow-700' : 'text-yellow-300')}>
-                                    {systemStats.cpuUsage.toFixed(1)}%
-                                </div>
-                            </div>
-                            <div className={cn("w-full h-1.5 rounded-full overflow-hidden",
-                                theme === 'light' ? 'bg-zinc-200' : 'bg-zinc-800'
+                            <div className={cn("flex items-center gap-2 text-xs font-semibold uppercase tracking-wider",
+                                theme === 'light' ? 'text-yellow-600' : 'text-yellow-400'
                             )}>
-                                <div className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all" 
-                                    style={{ width: `${Math.min(systemStats.cpuUsage, 100)}%` }} />
+                                <HardDrive size={14} />
+                                System Resources
                             </div>
-                        </div>
 
-                        {/* RAM Usage */}
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
-                                    RAM Usage
+                            {/* CPU Usage (hide if no CPU data) */}
+                            {systemStats.hasCpuData && systemStats.cpuUsage !== null && (
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
+                                            CPU Load
+                                        </div>
+                                        <div className={cn("text-sm font-bold", theme === 'light' ? 'text-yellow-700' : 'text-yellow-300')}>
+                                            {systemStats.cpuUsage.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                    <div className={cn("w-full h-1.5 rounded-full overflow-hidden",
+                                        theme === 'light' ? 'bg-zinc-200' : 'bg-zinc-800'
+                                    )}>
+                                        <div className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all"
+                                            style={{ width: `${Math.min(systemStats.cpuUsage, 100)}%` }} />
+                                    </div>
                                 </div>
-                                <div className={cn("text-sm font-bold", theme === 'light' ? 'text-emerald-700' : 'text-emerald-300')}>
-                                    {((systemStats.ramUsage / 1024 / 1024 / 1024).toFixed(1))} GB / {(systemStats.ramTotal / 1024 / 1024 / 1024).toFixed(1)} GB
+                            )}
+
+                            {/* RAM Usage */}
+                            {systemStats.hasRamData && systemStats.ramUsage !== null && systemStats.ramTotal !== null && (
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
+                                            RAM Usage
+                                        </div>
+                                        <div className={cn("text-sm font-bold", theme === 'light' ? 'text-emerald-700' : 'text-emerald-300')}>
+                                            {((systemStats.ramUsage / 1024 / 1024 / 1024).toFixed(1))} GB / {(systemStats.ramTotal / 1024 / 1024 / 1024).toFixed(1)} GB
+                                        </div>
+                                    </div>
+                                    <div className={cn("w-full h-1.5 rounded-full overflow-hidden",
+                                        theme === 'light' ? 'bg-zinc-200' : 'bg-zinc-800'
+                                    )}>
+                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+                                            style={{ width: `${Math.min((systemStats.ramUsage / systemStats.ramTotal) * 100, 100)}%` }} />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className={cn("w-full h-1.5 rounded-full overflow-hidden",
-                                theme === 'light' ? 'bg-zinc-200' : 'bg-zinc-800'
-                            )}>
-                                <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all" 
-                                    style={{ width: `${Math.min((systemStats.ramUsage / systemStats.ramTotal) * 100, 100)}%` }} />
-                            </div>
+                            )}
                         </div>
-                    </div>
+                    )}
 
                     {/* Wallet Balance */}
                     <div className={cn("border rounded-xl p-5 space-y-4",
@@ -775,34 +922,34 @@ const Mining: React.FC = () => {
                             theme === 'light' ? 'text-emerald-700' : 'text-emerald-400'
                         )}>
                             <Shield size={14} />
-                            Wallet Balance
+                            Estimated Wallet Balance
                         </div>
-                        
+                        <div className={cn("text-xs mt-1", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>
+                            Calculated based on hashrate, mining time, Monero reward rate, and exchange rates
+                        </div>
+
                         {/* XMR Balance */}
                         <div className="space-y-1">
                             <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
-                                Monero (XMR)
+                                Estimated Monero (XMR)
                             </div>
                             <div className={cn("text-xl font-bold font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
-                                {xmrBalance.toFixed(8)} XMR
+                                {(Number.isFinite(xmrBalance) ? xmrBalance : 0).toFixed(8)} XMR
                             </div>
                             <div className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>
-                                ≈ ${(xmrBalance * xmrPrice).toFixed(2)} USD
+                                ≈ ${((Number.isFinite(xmrBalance) ? xmrBalance : 0) * (Number.isFinite(xmrUsd) ? xmrUsd : 0)).toFixed(2)} USD
                             </div>
                         </div>
 
                         <div className={cn("border-t", theme === 'light' ? 'border-zinc-200' : 'border-white/5')} />
 
-                        {/* BMT Balance (80% after 20% fee) */}
+                        {/* BMT Balance */}
                         <div className="space-y-1">
                             <div className={cn("text-xs uppercase tracking-wide", theme === 'light' ? 'text-emerald-600' : 'text-emerald-500')}>
-                                Your Rewards (BMT)
+                                your estimated rewards in $BMT
                             </div>
                             <div className={cn("text-2xl font-bold", theme === 'light' ? 'text-emerald-900' : 'text-emerald-300')}>
-                                {bmtBalance.toFixed(2)} BMT
-                            </div>
-                            <div className={cn("text-xs", theme === 'light' ? 'text-emerald-600' : 'text-emerald-500')}>
-                                80% of XMR value · 20% platform fee
+                                {(Number.isFinite(bmtBalance) ? bmtBalance : 0).toFixed(2)} BMT
                             </div>
                         </div>
                     </div>
@@ -814,9 +961,9 @@ const Mining: React.FC = () => {
 
 const StatCard = ({ label, value, icon, theme }: { label: string; value: string; icon: React.ReactNode; theme: string }) => (
     <div className={cn("rounded-lg border p-3 flex flex-col gap-1",
-      theme === 'light'
-        ? 'bg-white border-zinc-200'
-        : 'bg-zinc-950/70 border-white/5'
+        theme === 'light'
+            ? 'bg-white border-zinc-200'
+            : 'bg-zinc-950/70 border-white/5'
     )}>
         <div className={cn("flex items-center gap-2 text-xs uppercase tracking-widest", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
             {icon}
@@ -826,10 +973,11 @@ const StatCard = ({ label, value, icon, theme }: { label: string; value: string;
     </div>
 );
 
-const MetricCard = React.memo(({ label, value, icon, color, theme }: { label: string; value: string; icon: React.ReactNode; color: 'emerald' | 'yellow'; theme: string }) => {
+const MetricCard = React.memo(({ label, value, icon, color, theme }: { label: string; value: string; icon: React.ReactNode; color: 'emerald' | 'yellow' | 'blue'; theme: string }) => {
     const colorMap = {
         emerald: { light: 'border-emerald-200 bg-emerald-50 text-emerald-700', dark: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' },
         yellow: { light: 'border-yellow-200 bg-yellow-50 text-yellow-700', dark: 'border-yellow-500/20 bg-yellow-500/10 text-yellow-400' },
+        blue: { light: 'border-blue-200 bg-blue-50 text-blue-700', dark: 'border-blue-500/20 bg-blue-500/10 text-blue-400' },
     };
     const colorClass = colorMap[color][theme === 'light' ? 'light' : 'dark'];
     return (

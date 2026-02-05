@@ -156,7 +156,8 @@ const Benchmark = () => {
             const res = await window.electron.invoke("start-benchmark", { 
                 type: deviceType, 
                 wallet, 
-                worker: workerName 
+                worker: workerName,
+                solanaWallet: user?.publicKey // Raw Solana address (no encoding)
             });
             
             setStatus('running');

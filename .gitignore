@@ -28,6 +28,8 @@ certs/
 *.pem
 .env.local
 .env.signing
+.env
+.env.*
 
 # Editor directories and files
 .vscode/*
@@ -39,3 +41,4 @@ certs/
 *.njsproj
 *.sln
 *.sw?
+.env
