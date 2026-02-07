@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld("electron", {
   // Log to system log file from renderer process
   logToFile: (level, message, source = 'UI') => 
     ipcRenderer.invoke('log-to-file', { level, message, source }),
+
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   
   // Solana wallet IPC - expose ipcRenderer for wallet operations
   ipcRenderer: {

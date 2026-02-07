@@ -521,6 +521,19 @@ ipcMain.handle('get-display-status', () => {
   return displayStatus;
 });
 
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    if (typeof url !== 'string' || !url.trim()) {
+      return { success: false, error: 'Invalid URL' };
+    }
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    console.error('[open-external] Failed:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+});
+
 // === Solana Wallet IPC Handlers ===
 ipcMain.handle('solana-connect-wallet', async () => {
   try {

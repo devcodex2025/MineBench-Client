@@ -19,7 +19,18 @@ export const Settings = () => {
   const [autoStartSupported, setAutoStartSupported] = useState(true);
   const [autoStartLoading, setAutoStartLoading] = useState(false);
   const autoStartDisabled = autoStartLoading || !autoStartSupported || !window?.electron?.invoke;
-
+  const openExternal = useCallback(async (url: string) => {
+    try {
+      if (window.electron?.openExternal) {
+        const res = await window.electron.openExternal(url);
+        if (res?.success === false) throw new Error(res?.error || 'openExternal failed');
+        return;
+      }
+    } catch (err) {
+      console.warn('[Settings] openExternal failed, falling back to window.open:', err);
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
   const cardClass = cn(
     'rounded-lg p-6 space-y-4',
     theme === 'light'
@@ -53,7 +64,7 @@ export const Settings = () => {
 
   const handleDownloadUpdate = () => {
     // Open MineBench releases page
-    window.open('https://minebench.app/releases', '_blank');
+    openExternal('https://minebench.app/releases');
   };
 
   const refreshAutoStart = useCallback(async () => {
@@ -272,20 +283,38 @@ export const Settings = () => {
 
           <div className="pt-4 space-y-2 text-xs">
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>License:</span> MIT</p>
-            <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Website:</span> <span className="text-blue-400">minebench.cloud</span></p>
+            <p>
+              <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Website:</span>{' '}
+              <button
+                type="button"
+                className="text-blue-400 hover:underline"
+                onClick={() => openExternal('https://minebench.cloud')}
+              >
+                minebench.cloud
+              </button>{' '}
+              - Benchmark results, latest releases, and downloads.
+            </p>
             <p>
               <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Discord:</span>{' '}
-              <a className="text-blue-400" href="https://discord.gg/vsDyYh4rma" target="_blank" rel="noreferrer">
+              <button
+                type="button"
+                className="text-blue-400 hover:underline"
+                onClick={() => openExternal('https://discord.gg/vsDyYh4rma')}
+              >
                 discord.gg/vsDyYh4rma
-              </a>{' '}
-              — тут можна долучитись до спільноти, отримати технічну консультацію і т.д
+              </button>{' '}
+              - Join the community for support, updates, and technical guidance.
             </p>
             <p>
               <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Twitter/X:</span>{' '}
-              <a className="text-blue-400" href="https://x.com/MineBenchdapp" target="_blank" rel="noreferrer">
+              <button
+                type="button"
+                className="text-blue-400 hover:underline"
+                onClick={() => openExternal('https://x.com/MineBenchdapp')}
+              >
                 x.com/MineBenchdapp
-              </a>{' '}
-              — тут відображаються новини про додаток
+              </button>{' '}
+              - Official product news and release updates.
             </p>
             <p><span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Platform Support:</span> Windows, macOS, Linux (with Wayland support)</p>
           </div>
@@ -434,3 +463,4 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
     </div>
   );
 };
+

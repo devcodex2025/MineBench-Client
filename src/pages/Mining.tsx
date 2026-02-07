@@ -746,7 +746,7 @@ const Mining: React.FC = () => {
                                     )}
                                 />
                                 <p className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>
-                                    Idle · Low · Normal - Балансування між продуктивністю та системною стабільністю
+                                    Idle · Low · Normal — balancing performance and system stability
                                 </p>
                             </div>
 
@@ -857,38 +857,47 @@ const Mining: React.FC = () => {
                                 </div>
                             )}
                             <button
-                                onClick={status === 'running' || status === 'starting' ? stopMining : startMining}
-                                disabled={status === 'starting' || (!walletValid && status === 'idle') || (!isNodeFullySynced && status === 'idle')}
+                                onClick={
+                                    status === 'paused'
+                                        ? resumeMining
+                                        : (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping')
+                                            ? startMining
+                                            : pauseMining
+                                }
+                                disabled={status === 'starting' || (!walletValid && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping')) || (!isNodeFullySynced && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping'))}
                                 className={cn(
                                     'py-3.5 px-4 rounded-xl font-semibold text-sm tracking-tight transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer',
-                                    status === 'running' || status === 'starting'
-                                        ? 'bg-red-500/10 text-red-500 border-2 border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30'
+                                    status === 'running' || status === 'paused'
+                                        ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
                                         : (theme === 'light'
                                             ? 'bg-emerald-600 text-white border-2 border-emerald-600 hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-200'
                                             : 'bg-emerald-500 text-zinc-950 border-2 border-emerald-500 hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20')
                                 )}
                             >
-                                {status === 'running' ? <><Square size={16} className="fill-current" /> Stop</> :
-                                    status === 'starting' ? <><Activity size={16} className="animate-spin" /> Connecting</> :
-                                        status === 'paused' ? <><PlayIcon size={16} className="fill-current" /> Resume</> :
-                                            <><Play size={16} className="fill-current" /> Start</>}
+                                {status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping' ? (
+                                    <><Play size={16} className="fill-current" /> Start</>
+                                ) : status === 'paused' ? (
+                                    <><PlayIcon size={16} className="fill-current" /> Resume</>
+                                ) : status === 'starting' ? (
+                                    <><Activity size={16} className="animate-spin" /> Connecting</>
+                                ) : (
+                                    <><Pause size={16} className="fill-current" /> Pause</>
+                                )}
                             </button>
 
                             <button
-                                onClick={status === 'paused' ? resumeMining : pauseMining}
-                                disabled={status !== 'running' && status !== 'paused' && status !== 'starting'}
+                                onClick={status === 'running' || status === 'starting' || status === 'paused' ? stopMining : startMining}
+                                disabled={status === 'idle' || status === 'starting' || status === 'completed' || status === 'error' || status === 'stopping'}
                                 className={cn(
                                     'py-3.5 px-4 rounded-xl font-semibold text-sm tracking-tight transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer',
-                                    status === 'paused'
-                                        ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
-                                        : status === 'running'
-                                            ? 'bg-yellow-500/10 text-yellow-600 border-2 border-yellow-500/20 hover:bg-yellow-500/20 hover:border-yellow-500/30'
-                                            : (theme === 'light'
-                                                ? 'bg-zinc-200 text-zinc-500 border-2 border-zinc-200'
-                                                : 'bg-zinc-800 text-zinc-600 border-2 border-zinc-800')
+                                    status === 'running' || status === 'starting' || status === 'paused'
+                                        ? 'bg-red-500/10 text-red-500 border-2 border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30'
+                                        : (theme === 'light'
+                                            ? 'bg-zinc-200 text-zinc-500 border-2 border-zinc-200'
+                                            : 'bg-zinc-800 text-zinc-600 border-2 border-zinc-800')
                                 )}
                             >
-                                {status === 'paused' ? <><PlayIcon size={16} className="fill-current" /> Resume</> : <><Pause size={16} className="fill-current" /> Pause</>}
+                                <><Square size={16} className="fill-current" /> Stop</>
                             </button>
                         </div>
                     </div>
