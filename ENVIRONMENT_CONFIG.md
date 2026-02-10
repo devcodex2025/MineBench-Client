@@ -154,6 +154,17 @@ Edit `src/config/environment.ts` to modify the configurations directly.
 | `VITE_SOLANA_RPC_URL` | Solana RPC endpoint | devnet | mainnet-beta |
 | `VITE_POOL_API_URL` | Pool API endpoint | localhost | minebench.cloud |
 
+## Electron Public Pool Config (Non-sensitive)
+
+These are read by `electron/main.cjs` to fetch pool host/port config from the backend and reduce hardcoded values in the client build:
+
+| Variable | Description | Dev Value | Prod Value |
+|----------|-------------|-----------|------------|
+| `PUBLIC_CONFIG_URL` | URL for backend public config endpoint | backend.minebench.cloud/public/config | backend.minebench.cloud/public/config |
+| `POOL_CONFIG_ALLOWLIST` | Comma-separated host allowlist | xmr.minebench.cloud,xmr2.minebench.cloud,localhost,127.0.0.1 | xmr.minebench.cloud,xmr2.minebench.cloud |
+| `PUBLIC_CONFIG_SIGNING_PUBLIC_KEY_PEM` | Optional public key to verify config signature | (optional) | (optional) |
+| `POOL_CONFIG_ALLOW_ANY_HOST` | Dev escape hatch to accept any host | false | false |
+
 ## Tips for Development
 
 1. **Local Testing**: Use `npm run dev:local` when developing with local backend services

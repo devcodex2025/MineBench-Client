@@ -3,6 +3,7 @@ import { Terminal, Circle, Trash2, Download, FolderOpen } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
+import { getEnvironmentConfig } from '../config/environment';
 
 interface LogEntry {
   time: string;
@@ -18,6 +19,7 @@ export const Logs: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'mining' | 'benchmark' | 'node'>('all');
   const [logsDir, setLogsDir] = useState<string | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const env = getEnvironmentConfig();
 
   useEffect(() => {
     const handleMinerLog = (_: any, data: string) => {
@@ -94,7 +96,7 @@ export const Logs: React.FC = () => {
   };
 
   const primaryStatus = getPoolStatus('cpu');
-  const backupStatus = getPoolStatus('cpu-backup');
+  const backupStatus = env.enableBackupPool ? getPoolStatus('cpu-backup') : null;
   const categorizeSystemLog = (log: string): LogEntry['type'] => {
     const lower = log.toLowerCase();
     if (lower.includes('benchmark')) return 'benchmark';
@@ -205,7 +207,7 @@ export const Logs: React.FC = () => {
               Block {primaryStatus.pool.height.toLocaleString()} / {primaryStatus.pool.targetHeight.toLocaleString()}
             </div>
           )}
-          {backupStatus.pool && (
+          {backupStatus?.pool && (
             <div className={cn("mt-2 text-xs", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
               CPU Reserve NODE: {backupStatus.text}
             </div>

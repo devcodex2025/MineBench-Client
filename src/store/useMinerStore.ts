@@ -117,6 +117,14 @@ interface MinerSettings {
     manualPoolSelection: boolean;
 }
 
+const env = getEnvironmentConfig();
+const initialPools = {
+    'cpu': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' },
+    ...(env.enableBackupPool
+        ? { 'cpu-backup': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' } }
+        : {})
+};
+
 export const useMinerStore = create<MiningState>((set, get) => ({
     mode: 'benchmark',
     deviceType: 'cpu',
@@ -142,7 +150,7 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     p2poolBalance: 0,
 
     donateLevel: 1,
-    poolUrl: getEnvironmentConfig().poolStratumUrl,
+    poolUrl: env.poolStratumUrl,
     cpuPriority: 2, // Default: balanced (0=lowest, 5=highest)
     randomxMode: 'auto', // auto-detect best mode
     hugePages: true, // Enable huge pages for better performance
@@ -152,8 +160,7 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     logs: [],
 
     pools: {
-        'cpu': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' },
-        'cpu-backup': { isSynced: false, height: 0, targetHeight: 0, progress: 0, connected: false, coin: 'XMR' }
+        ...initialPools
         // GPU pool will be added when RVN node is deployed
     },
 
@@ -296,12 +303,16 @@ export const useMinerStore = create<MiningState>((set, get) => ({
 
         if (!settings) return;
 
+        const nextPoolUrl = (!env.enableBackupPool && settings.poolUrl && settings.poolUrl.includes(env.poolStratumUrlBackup))
+            ? env.poolStratumUrl
+            : (settings.poolUrl || state.poolUrl);
+
         set({
             wallet: settings.wallet || state.wallet,
             workerName: settings.workerName || state.workerName,
             threads: settings.threads || state.threads,
             donateLevel: settings.donateLevel ?? state.donateLevel,
-            poolUrl: settings.poolUrl || state.poolUrl,
+            poolUrl: nextPoolUrl,
             cpuPriority: settings.cpuPriority ?? state.cpuPriority,
             randomxMode: settings.randomxMode || state.randomxMode,
             hugePages: settings.hugePages ?? state.hugePages,

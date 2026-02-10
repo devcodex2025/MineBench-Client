@@ -1,0 +1,16 @@
+{
+  "publicConfigUrl": "https://backend.minebench.cloud/public/config",
+  "poolConfigAllowlist": [
+    "xmr.minebench.cloud",
+    "xmr2.minebench.cloud"
+  ],
+  "defaults": {
+    "primaryHost": "xmr.minebench.cloud",
+    "backupHost": "xmr2.minebench.cloud",
+    "stratumPort": 3333,
+    "moneroP2pPort": 18080,
+    "moneroRpcPort": 18081,
+    "p2poolP2pPort": 37889,
+    "enableBackupPool": false
+  }
+}

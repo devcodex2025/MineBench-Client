@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Play, Square, Pause, Play as PlayIcon, Flame, Gauge, Zap, Shield, Cpu, TrendingUp, Clock, Activity, Thermometer, HardDrive, Info } from 'lucide-react';
+import { Play, Square, Pause, Play as PlayIcon, Flame, Gauge, Zap, Shield, Cpu, TrendingUp, Clock, Activity, Thermometer, HardDrive, Info, Hourglass } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
 import { useSolanaAuth } from '../services/solanaAuth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -134,9 +134,12 @@ const Mining: React.FC = () => {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [peakHashrate, setPeakHashrate] = useState(0);
     const [poolNetworkHashrate, setPoolNetworkHashrate] = useState(300000000000); // Default Monero difficulty
+    const env = getEnvironmentConfig();
     const primaryPool = pools?.['cpu'];
-    const reservePool = pools?.['cpu-backup'];
-    const isNodeFullySynced = !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9));
+    const reservePool = env.enableBackupPool ? pools?.['cpu-backup'] : undefined;
+    const isNodeFullySynced = env.enableBackupPool
+        ? !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9))
+        : !!(primaryPool?.isSynced && primaryPool?.progress >= 99.9);
     
     // Get global pool stats from store
     const poolHashrateTotal = useMinerStore((state) => state.poolHashrateTotal);
@@ -262,7 +265,7 @@ const Mining: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        const shouldPoll = status === 'running' || status === 'starting';
+        const shouldPoll = status === 'running';
 
         if (!shouldPoll) {
             if (statsIntervalRef.current) {
@@ -433,7 +436,7 @@ const Mining: React.FC = () => {
     };
 
     const fetchStats = async () => {
-        const shouldPoll = status === 'running' || status === 'starting';
+        const shouldPoll = status === 'running';
         if (!shouldPoll) return;
         try {
             // Determine which xmrig API endpoint to use based on miner version
@@ -498,7 +501,7 @@ const Mining: React.FC = () => {
 
             let hr = 0;
             let temp: number | null = null;
-            let power = 0;
+            let power: number | null = null;
 
             if (deviceType === 'cpu') {
                 // Try different hashrate paths for different xmrig versions
@@ -511,17 +514,17 @@ const Mining: React.FC = () => {
                 if (hr > 0) {
                     setPeakHashrate((prev) => (hr > prev ? hr : prev));
                 }
-                // Fetch CPU temp asynchronously without blocking
-                window.electron.invoke('get-cpu-temp').then((tempRes: any) => {
-                    if (tempRes && tempRes.success) {
-                        updateStats(hr, tempRes.temp, power);
-                    } else {
-                        // Update without temp if unavailable
-                        updateStats(hr, null, power);
-                    }
+                // Fetch CPU temp + power asynchronously without blocking
+                Promise.all([
+                    window.electron.invoke('get-cpu-temp'),
+                    window.electron.invoke('get-cpu-power')
+                ]).then(([tempRes, powerRes]: any[]) => {
+                    const nextTemp = tempRes && tempRes.success ? tempRes.temp : null;
+                    const nextPower = powerRes && powerRes.success ? powerRes.power : null;
+                    updateStats(hr, nextTemp, nextPower ?? undefined);
                 }).catch(() => {
-                    // Still update with hashrate if temp fails
-                    updateStats(hr, null, power);
+                    // Still update with hashrate if temp/power fails
+                    updateStats(hr, null, power ?? undefined);
                 });
                 return; // Don't call updateStats again below
             } else if (data.gpus && data.gpus.length > 0) {
@@ -879,7 +882,7 @@ const Mining: React.FC = () => {
                                 ) : status === 'paused' ? (
                                     <><PlayIcon size={16} className="fill-current" /> Resume</>
                                 ) : status === 'starting' ? (
-                                    <><Activity size={16} className="animate-spin" /> Connecting</>
+                                    <><Hourglass size={16} className="animate-spin" /> Connecting</>
                                 ) : (
                                     <><Pause size={16} className="fill-current" /> Pause</>
                                 )}
@@ -887,7 +890,7 @@ const Mining: React.FC = () => {
 
                             <button
                                 onClick={status === 'running' || status === 'starting' || status === 'paused' ? stopMining : startMining}
-                                disabled={status === 'idle' || status === 'starting' || status === 'completed' || status === 'error' || status === 'stopping'}
+                                disabled={status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping'}
                                 className={cn(
                                     'py-3.5 px-4 rounded-xl font-semibold text-sm tracking-tight transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer',
                                     status === 'running' || status === 'starting' || status === 'paused'

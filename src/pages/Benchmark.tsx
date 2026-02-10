@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Play, Square, Cpu, Monitor, Timer, Zap } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { cn, formatHashrate } from '../lib/utils'; // Assumes formatHashrate is in utils
+import { getEnvironmentConfig } from '../config/environment';
 // import { ipcRenderer } from 'electron'; 
 
 // Adding IPC type safety shim for development if needed, 
@@ -36,9 +37,12 @@ const Benchmark = () => {
     const [sysInfo, setSysInfo] = useState<{cpu: string, cores: number, ram: string} | null>(null);
     const [showAuthWarning, setShowAuthWarning] = useState(false);
     const [pendingStart, setPendingStart] = useState(false);
+    const env = getEnvironmentConfig();
     const primaryPool = pools?.['cpu'];
-    const reservePool = pools?.['cpu-backup'];
-    const isNodeFullySynced = !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9));
+    const reservePool = env.enableBackupPool ? pools?.['cpu-backup'] : undefined;
+    const isNodeFullySynced = env.enableBackupPool
+        ? !!((primaryPool?.isSynced && primaryPool?.progress >= 99.9) || (reservePool?.isSynced && reservePool?.progress >= 99.9))
+        : !!(primaryPool?.isSynced && primaryPool?.progress >= 99.9);
 
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -284,15 +288,19 @@ const Benchmark = () => {
             
             let hr = 0;
             let temp = null;
-            let power = 0;
+            let power: number | null = null;
             let miningActive = false;
 
             if (deviceType === 'cpu') {
                 hr = data.hashrate?.total?.[0] ?? 0;
                 miningActive = data.hashrate?.total?.length > 0;
-                // Fetch Temp via IPC
-                const tempRes = await window.electron.invoke('get-cpu-temp');
+                // Fetch Temp + Power via IPC
+                const [tempRes, powerRes] = await Promise.all([
+                    window.electron.invoke('get-cpu-temp'),
+                    window.electron.invoke('get-cpu-power')
+                ]);
                 if (tempRes && tempRes.success) temp = tempRes.temp;
+                if (powerRes && powerRes.success) power = powerRes.power;
             } else {
                 // GPU
                 if (data.gpus && data.gpus.length > 0) {
@@ -311,7 +319,7 @@ const Benchmark = () => {
             }
 
             if (hr > 0) {
-                updateStats(hr, temp, power);
+                updateStats(hr, temp, power ?? undefined);
                 localStatsRef.current.push(hr);
                 console.debug(`[Benchmark] Hashrate update: ${formatHashrate(hr)} | Temp: ${temp}°C`);
             }
@@ -517,36 +525,42 @@ const Benchmark = () => {
                     </div>
 
                     {/* Live Metrics */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className={cn("border rounded-xl p-4",
-                          theme === 'light'
-                            ? 'bg-white border-zinc-200'
-                            : 'bg-zinc-900/50 border-white/5'
-                        )}>
-                            <div className={cn("flex items-center gap-2 mb-2 text-xs",
-                              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
-                            )}>
-                                <Zap size={14} /> <span>Power</span>
-                            </div>
-                            <div className={cn("text-xl font-mono",
-                              theme === 'light' ? 'text-zinc-900' : 'text-white'
-                            )}>{currentPower ? currentPower.toFixed(0) : '-'} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>W</span></div>
+                    {(Number.isFinite(currentPower as number) && (currentPower as number) > 0) || (Number.isFinite(currentTemp as number) && (currentTemp as number) > 0) ? (
+                        <div className="grid grid-cols-2 gap-4">
+                            {Number.isFinite(currentPower as number) && (currentPower as number) > 0 && (
+                                <div className={cn("border rounded-xl p-4",
+                                    theme === 'light'
+                                        ? 'bg-white border-zinc-200'
+                                        : 'bg-zinc-900/50 border-white/5'
+                                )}>
+                                    <div className={cn("flex items-center gap-2 mb-2 text-xs",
+                                        theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+                                    )}>
+                                        <Zap size={14} /> <span>Power</span>
+                                    </div>
+                                    <div className={cn("text-xl font-mono",
+                                        theme === 'light' ? 'text-zinc-900' : 'text-white'
+                                    )}>{(currentPower as number).toFixed(0)} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>W</span></div>
+                                </div>
+                            )}
+                            {Number.isFinite(currentTemp as number) && (currentTemp as number) > 0 && (
+                                <div className={cn("border rounded-xl p-4",
+                                    theme === 'light'
+                                        ? 'bg-white border-zinc-200'
+                                        : 'bg-zinc-900/50 border-white/5'
+                                )}>
+                                    <div className={cn("flex items-center gap-2 mb-2 text-xs",
+                                        theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
+                                    )}>
+                                        <Timer size={14} /> <span>Temp</span>
+                                    </div>
+                                    <div className={cn("text-xl font-mono",
+                                        theme === 'light' ? 'text-zinc-900' : 'text-white'
+                                    )}>{(currentTemp as number).toFixed(1)} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>°C</span></div>
+                                </div>
+                            )}
                         </div>
-                        <div className={cn("border rounded-xl p-4",
-                          theme === 'light'
-                            ? 'bg-white border-zinc-200'
-                            : 'bg-zinc-900/50 border-white/5'
-                        )}>
-                             <div className={cn("flex items-center gap-2 mb-2 text-xs",
-                              theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
-                            )}>
-                                <Timer size={14} /> <span>Temp</span>
-                            </div>
-                            <div className={cn("text-xl font-mono",
-                              theme === 'light' ? 'text-zinc-900' : 'text-white'
-                            )}>{currentTemp ? currentTemp.toFixed(1) : '-'} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>°C</span></div>
-                        </div>
-                    </div>
+                    ) : null}
                 </div>
 
                 {/* Chart Area */}

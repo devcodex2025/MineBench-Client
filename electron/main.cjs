@@ -4,10 +4,151 @@ const path = require("path");
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const si = require('systeminformation');
 const { createClient } = require('@supabase/supabase-js');
-const { randomUUID } = require('crypto');
+const crypto = require('crypto');
+const { randomUUID } = crypto;
 const deviceIdFile = path.join(app.getPath('userData'), 'device_id.txt');
 const os = require('os');
 const http = require('http');
+const dotenv = require('dotenv');
+const dotenvExpand = require('dotenv-expand');
+
+
+// Load .env.development for Electron (dev/local only)
+try {
+  if (!app.isPackaged) {
+    const envPath = path.join(__dirname, '..', '.env.development');
+    if (fs.existsSync(envPath)) {
+      dotenvExpand.expand(dotenv.config({ path: envPath }));
+    }
+  }
+} catch (e) {}
+
+function loadFallbackConfig() {
+  try {
+    const configPath = path.join(__dirname, '..', 'config', 'fallback.json');
+    if (!fs.existsSync(configPath)) return null;
+    const raw = fs.readFileSync(configPath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('[fallback-config] Failed to load:', err.message);
+    return null;
+  }
+}
+
+const fallbackConfig = loadFallbackConfig() || {};
+
+// === Public Pool Config (remote) ===
+let runtimePoolConfig = null;
+let runtimePoolConfigLoadedAt = null;
+const PUBLIC_CONFIG_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const keys = Object.keys(value).sort();
+  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
+  return `{${entries.join(',')}}`;
+}
+
+function buildPublicConfigUrl() {
+  const explicit = process.env.PUBLIC_CONFIG_URL || process.env.MB_PUBLIC_CONFIG_URL;
+  if (explicit) return explicit;
+  const backendUrl = process.env.BACKEND_URL || process.env.MB_BACKEND_URL || process.env.VITE_BACKEND_URL;
+  if (backendUrl) return `${backendUrl.replace(/\/+$/, '')}/public/config`;
+  return fallbackConfig.publicConfigUrl || 'https://backend.minebench.cloud/public/config';
+}
+
+function parseAllowlist() {
+  const raw = process.env.POOL_CONFIG_ALLOWLIST || process.env.MB_POOL_CONFIG_ALLOWLIST;
+  if (raw) return new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
+  const list = Array.isArray(fallbackConfig.poolConfigAllowlist) ? fallbackConfig.poolConfigAllowlist : [];
+  return new Set(list.map((s) => String(s).trim()).filter(Boolean));
+}
+
+function isValidPort(value) {
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0 && num <= 65535;
+}
+
+function isAllowedHost(host, allowlist) {
+  if (!host || typeof host !== 'string') return false;
+  const normalized = host.trim().toLowerCase();
+  const allowAny = String(process.env.POOL_CONFIG_ALLOW_ANY_HOST || '').toLowerCase() === 'true';
+  return allowAny || allowlist.has(normalized);
+}
+
+function normalizePoolConfig(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const primary = raw.pool && raw.pool.primary;
+  const backup = raw.pool && raw.pool.backup;
+  if (!primary || !primary.host) return null;
+
+  const allowlist = parseAllowlist();
+  if (!isAllowedHost(primary.host, allowlist)) return null;
+  if (!isValidPort(primary.stratumPort) || !isValidPort(primary.rpcPort)) return null;
+
+  const normalized = {
+    primary: {
+      host: String(primary.host).trim().toLowerCase(),
+      stratumPort: Number(primary.stratumPort),
+      rpcPort: Number(primary.rpcPort)
+    }
+  };
+
+  if (backup && backup.host && isAllowedHost(backup.host, allowlist) && isValidPort(backup.stratumPort) && isValidPort(backup.rpcPort)) {
+    normalized.backup = {
+      host: String(backup.host).trim().toLowerCase(),
+      stratumPort: Number(backup.stratumPort),
+      rpcPort: Number(backup.rpcPort)
+    };
+  }
+
+  return normalized;
+}
+
+async function loadRemotePoolConfig() {
+  try {
+    const url = buildPublicConfigUrl();
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    const json = await res.json();
+
+    const { signature, alg, keyId, ...payload } = json || {};
+    const publicKeyPem = process.env.PUBLIC_CONFIG_SIGNING_PUBLIC_KEY_PEM || process.env.MB_PUBLIC_CONFIG_SIGNING_PUBLIC_KEY_PEM || '';
+
+    if (publicKeyPem) {
+      if (!signature || alg !== 'ed25519') {
+        throw new Error('Missing or invalid signature');
+      }
+      const data = Buffer.from(stableStringify(payload));
+      const sig = Buffer.from(signature, 'base64');
+      const ok = crypto.verify(null, data, publicKeyPem, sig);
+      if (!ok) throw new Error('Signature verification failed');
+    }
+
+    const normalized = normalizePoolConfig(payload);
+    if (!normalized) throw new Error('Invalid pool config payload');
+
+    runtimePoolConfig = normalized;
+    runtimePoolConfigLoadedAt = Date.now();
+    console.log('[public-config] Loaded remote pool config from', url, keyId ? `(keyId=${keyId})` : '');
+  } catch (err) {
+    console.warn('[public-config] Failed to load remote pool config:', err.message);
+  }
+}
+
+// Fire and forget; handlers fall back to env if config is not ready
+loadRemotePoolConfig();
+setInterval(() => {
+  const now = Date.now();
+  if (!runtimePoolConfigLoadedAt || (now - runtimePoolConfigLoadedAt) >= PUBLIC_CONFIG_REFRESH_MS) {
+    loadRemotePoolConfig();
+  }
+}, PUBLIC_CONFIG_REFRESH_MS);
 
 // === Display Status Tracking for Linux ===
 let displayStatus = {
@@ -197,8 +338,8 @@ ipcMain.handle('get-cpu-name', () => {
   return os.cpus()[0].model;
 });
 
-ipcMain.handle('get-cpu-info', () => {
-  const cpuCaps = getCPUCapabilities();
+ipcMain.handle('get-cpu-info', async () => {
+  const cpuCaps = await getCPUCapabilities();
   return {
     model: cpuCaps.model,
     cores: cpuCaps.cores,
@@ -216,6 +357,103 @@ ipcMain.handle('get-cpu-info', () => {
 ipcMain.handle('get-cpu-cores', () => {
   return os.cpus().length;
 });
+
+
+// Cache CPU capabilities to avoid repeated detection
+let cachedCpuCaps = null;
+
+async function getCPUCapabilities() {
+  if (cachedCpuCaps) return cachedCpuCaps;
+
+  const model = os.cpus()?.[0]?.model || 'Unknown CPU';
+  const cores = os.cpus().length || 1;
+  let flags = '';
+  try {
+    flags = await si.cpuFlags();
+  } catch (e) {
+    flags = '';
+  }
+
+  const f = String(flags).toLowerCase();
+  const hasAES = f.includes('aes');
+  const hasAVX = f.includes('avx');
+  const hasAVX2 = f.includes('avx2');
+
+  const caps = {
+    model,
+    cores,
+    hasAES,
+    hasAVX,
+    hasAVX2,
+    arch: process.arch,
+    platform: process.platform,
+    supportsStandardXmrig: hasAVX2,
+    supportsCompatXmrig: hasAES,
+    message: hasAVX2 ? '? Full support' : (hasAES ? '?? Limited support (use compat version)' : '? Legacy only')
+  };
+
+  cachedCpuCaps = caps;
+  return caps;
+}
+
+async function getMinerPath(minerName) {
+  const platform = process.platform; // 'win32', 'darwin', 'linux'
+  const arch = process.arch; // 'x64', 'arm64'
+
+  let platformDir;
+  let exeExt = '';
+
+  if (platform === 'win32') {
+    platformDir = arch === 'arm64' ? 'win-arm64' : 'win-x64';
+    exeExt = '.exe';
+  } else if (platform === 'darwin') {
+    platformDir = arch === 'arm64' ? 'macos-arm64' : 'macos-x64';
+  } else {
+    platformDir = 'linux-x64';
+  }
+
+  const minerFolder = minerName.toLowerCase() === 'xmrig' ? 'Xmrig' : minerName;
+  const minerExe = `${minerName}${exeExt}`;
+
+  let minerSubDir = '';
+  if (minerName.toLowerCase() === 'xmrig') {
+    const cpuCaps = await getCPUCapabilities();
+    log(`[getMinerPath] CPU: ${cpuCaps.model} | Cores: ${cpuCaps.cores} | AES: ${cpuCaps.hasAES} | AVX: ${cpuCaps.hasAVX} | AVX2: ${cpuCaps.hasAVX2}`);
+    if (cpuCaps.hasAVX2) {
+      log('[getMinerPath] ? Using xmrig standard version (full CPU support)');
+      minerSubDir = '';
+    } else if (cpuCaps.hasAES) {
+      log('[getMinerPath] ?? Using xmrig COMPAT version (AES only)');
+      minerSubDir = 'compat';
+    } else {
+      log('[getMinerPath] ?? Using xmrig LEGACY version for old CPU (no AVX2/AES)');
+      minerSubDir = 'legacy';
+    }
+  }
+
+  const platformPath = minerSubDir ? path.join(platformDir, minerSubDir) : platformDir;
+
+  if (app.isPackaged) {
+    const resourcesPath = path.dirname(process.execPath);
+    const minerFullPath = path.join(resourcesPath, 'Miner', minerFolder, platformPath, minerExe);
+    try {
+      const exists = fs.existsSync(minerFullPath);
+      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: ${exists}`);
+    } catch (e) {
+      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: unknown (error: ${e.message})`);
+    }
+    return minerFullPath;
+  } else {
+    const minerFullPath = path.join(__dirname, '..', 'Miner', minerFolder, platformPath, minerExe);
+    try {
+      const exists = fs.existsSync(minerFullPath);
+      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: ${exists}`);
+    } catch (e) {
+      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: unknown (error: ${e.message})`);
+    }
+    return minerFullPath;
+  }
+}
 
 ipcMain.handle('get-system-stats', async () => {
   try {
@@ -274,6 +512,9 @@ async function sendToDatabase(data) {
 let cachedCpuTemp = null;
 let lastCpuTempTime = 0;
 const CPU_TEMP_CACHE_MS = 2000; // Cache for 2 seconds
+const CPU_POWER_CACHE_MS = 2000; // Cache for 2 seconds
+let cachedCpuPower = null;
+let lastCpuPowerTime = 0;
 
 ipcMain.handle('get-cpu-temp', async () => {
   try {
@@ -297,6 +538,36 @@ ipcMain.handle('get-cpu-temp', async () => {
   } catch (err) {
     console.error('Error reading CPU temp:', err);
     return { success: false, temp: null, message: 'Error reading CPU temperature' };
+  }
+});
+
+ipcMain.handle('get-cpu-power', async () => {
+  try {
+    const now = Date.now();
+    if (cachedCpuPower !== null && (now - lastCpuPowerTime) < CPU_POWER_CACHE_MS) {
+      return { success: true, power: cachedCpuPower };
+    }
+
+    if (typeof si.cpuPower !== 'function') {
+      return { success: false, power: null, message: 'cpuPower not supported' };
+    }
+
+    const powerData = await si.cpuPower();
+    const powerValue =
+      (typeof powerData?.power === 'number' && Number.isFinite(powerData.power) ? powerData.power : null) ??
+      (typeof powerData?.package === 'number' && Number.isFinite(powerData.package) ? powerData.package : null) ??
+      (typeof powerData?.current === 'number' && Number.isFinite(powerData.current) ? powerData.current : null);
+
+    if (powerValue === null) {
+      return { success: false, power: null, message: 'Cannot read CPU power' };
+    }
+
+    cachedCpuPower = powerValue;
+    lastCpuPowerTime = now;
+    return { success: true, power: powerValue };
+  } catch (err) {
+    console.error('Error reading CPU power:', err);
+    return { success: false, power: null, message: 'Error reading CPU power' };
   }
 });
 
@@ -784,21 +1055,56 @@ function robustGet(url) {
 // Cache для збереження останнього успішного статусу
 const poolStatusCache = new Map();
 
+function getRuntimePool() {
+  return runtimePoolConfig;
+}
+
+function getPoolEnvConfig() {
+  const runtime = getRuntimePool();
+  const defaults = fallbackConfig.defaults || {};
+  const primaryHost = runtime?.primary?.host || process.env.PRIMARY_RPC_HOST || process.env.MB_RPC_HOST || defaults.primaryHost || 'xmr.minebench.cloud';
+  const backupHost = runtime?.backup?.host || process.env.BACKUP_RPC_HOST || process.env.MB_RPC_HOST_BACKUP || defaults.backupHost || 'xmr2.minebench.cloud';
+
+  const useInternalRpc = String(process.env.PRIMARY_RPC_USE_INTERNAL ?? process.env.MB_RPC_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
+  const useInternalRpcBackup = String(process.env.BACKUP_RPC_USE_INTERNAL ?? process.env.MB_RPC_BACKUP_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
+
+  const rpcPortExternal = Number(process.env.PRIMARY_RPC_PORT || process.env.MB_RPC_PORT) || defaults.moneroRpcPort || 18081;
+  const rpcPortInternal = Number(process.env.PRIMARY_RPC_PORT_INTERNAL || process.env.MB_RPC_PORT_INTERNAL) || rpcPortExternal;
+  const rpcPortExternalBackupEnv = Number(process.env.BACKUP_RPC_PORT || process.env.MB_RPC_PORT_BACKUP) || 0;
+  const rpcPortInternalBackupEnv = Number(process.env.BACKUP_RPC_PORT_INTERNAL || process.env.MB_RPC_PORT_INTERNAL_BACKUP) || 0;
+
+  const primaryRpcPort = runtime?.primary?.rpcPort ?? (useInternalRpc ? rpcPortInternal : rpcPortExternal);
+  const backupRpcPort = runtime?.backup?.rpcPort ?? (useInternalRpcBackup ? rpcPortInternalBackupEnv : rpcPortExternalBackupEnv);
+
+  const primaryStratumPort = runtime?.primary?.stratumPort ?? (Number(process.env.PRIMARY_STRATUM_PORT || process.env.MB_STRATUM_PORT) || defaults.stratumPort || 3333);
+  const backupStratumPort = runtime?.backup?.stratumPort ?? (Number(process.env.BACKUP_STRATUM_PORT || process.env.MB_STRATUM_PORT_BACKUP) || 0);
+
+  return {
+    primaryHost,
+    backupHost,
+    primaryRpcPort,
+    backupRpcPort,
+    primaryStratumPort,
+    backupStratumPort
+  };
+}
+
+
 ipcMain.handle('get-pool-sync', async (event, poolId) => {
   // Mapping IDs to their RPC ports
   // Development: Local Docker containers with mapped RPC ports
   // Production: MineBench Cloud node deployed on Akash (xmr.minebench.cloud)
-  // NOTE: RPC port 18081 is forwarded on Akash; keep this in sync with current lease
-  const rpcHost = process.env.MB_RPC_HOST || 'xmr.minebench.cloud';
-  const rpcHostBackup = process.env.MB_RPC_HOST_BACKUP || 'xmr2.minebench.cloud';
-  const useInternalRpc = String(process.env.MB_RPC_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
-  const useInternalRpcBackup = String(process.env.MB_RPC_BACKUP_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
-  const rpcPortExternal = Number(process.env.MB_RPC_PORT) || 32285;
-  const rpcPortInternal = Number(process.env.MB_RPC_PORT_INTERNAL) || 32285;
-  const rpcPortExternalBackup = Number(process.env.MB_RPC_PORT_BACKUP) || 32076;
-  const rpcPortInternalBackup = Number(process.env.MB_RPC_PORT_INTERNAL_BACKUP) || rpcPortInternal;
-  const rpcPort = useInternalRpc ? rpcPortInternal : rpcPortExternal;
-  const rpcPortBackup = useInternalRpcBackup ? rpcPortInternalBackup : rpcPortExternalBackup;
+  // NOTE: RPC port is forwarded on Akash; keep this in sync with current lease
+  const {
+    primaryHost: rpcHost,
+    backupHost: rpcHostBackup,
+    primaryRpcPort: rpcPort,
+    backupRpcPort: rpcPortBackup
+  } = getPoolEnvConfig();
+
+  if (!rpcPortBackup) {
+    console.log('[get-pool-sync] Backup RPC port not set; skipping backup checks');
+  }
 
   const poolConfigs = {
     'cpu': {
@@ -806,11 +1112,11 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
       port: rpcPort, // Akash forwarded port for 18081 RPC
       container: 'minebench-monerod'
     },
-    'cpu-backup': {
+    'cpu-backup': rpcPortBackup ? {
       host: rpcHostBackup,
       port: rpcPortBackup,
       container: 'minebench-monerod-backup'
-    },
+    } : null,
     'gpu': {
       host: rpcHost,
       port: rpcPort, // Same RPC endpoint
@@ -819,9 +1125,19 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
   };
 
   const config = poolConfigs[poolId] || poolConfigs['cpu'];
+  if (!config) {
+    return {
+      success: false,
+      id: poolId,
+      connected: false,
+      message: "Backup not configured",
+      isSynced: false,
+      progress: 0
+    };
+  }
   const urls = [`http://${config.host}:${config.port}/get_info`];
 
-  // Спробуємо отримати свіжі дані
+  // Try to get fresh data
   for (const url of urls) {
     try {
       console.log(`[get-pool-sync][${poolId}] Fetching ${url}...`);
@@ -846,9 +1162,7 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
         message: isSynced ? "Ready" : "Syncing"
       };
 
-      // Зберігаємо успішний статус в кеш
       poolStatusCache.set(poolId, successStatus);
-
       return successStatus;
     } catch (err) {
       console.error(`[get-pool-sync][${poolId}] Error ${url}: ${err.message}`);
@@ -883,9 +1197,7 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
         message: isSynced ? "Ready" : "Syncing"
       };
 
-      // Зберігаємо успішний статус в кеш
       poolStatusCache.set(poolId, successStatus);
-
       return successStatus;
     }
   } catch (e) {
@@ -893,7 +1205,6 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
   }
 
   // FINAL FALLBACK: Parse Docker Logs directly (only for local dev)
-  // For remote pool on Akash, we can't access container logs
   if (config.host === 'localhost' || config.host === '127.0.0.1') {
     const logData = await getSyncFromLogs(config.container);
     if (logData) {
@@ -913,19 +1224,18 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
     }
   }
 
-  // Якщо всі спроби не вдалися, повертаємо закешований статус (якщо є)
+  // If all attempts failed, return cached status if any
   const cachedStatus = poolStatusCache.get(poolId);
   if (cachedStatus) {
     console.log(`[get-pool-sync][${poolId}] Using cached status: ${cachedStatus.progress.toFixed(1)}%`);
     return {
       ...cachedStatus,
-      connected: false, // Позначаємо що зараз не з'єднані
+      connected: false,
       message: "Using cached data"
     };
   }
 
-  // For production Akash pool: Show actual RPC status
-  // If RPC is unavailable, indicate unknown status but allow mining
+  // For production Akash pool: show actual RPC status
   if (config.host === 'xmr.minebench.cloud') {
     return {
       success: false,
@@ -935,7 +1245,7 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
       targetHeight: 0,
       progress: 0,
       connected: false,
-      message: "RPC unavailable - Update Akash deployment to expose port 18081"
+      message: `RPC unavailable - Update Akash deployment to expose port ${config.port}`
     };
   }
 
@@ -949,364 +1259,22 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
   };
 });
 
-let mainWindow = null;
-
-function log(message) {
-  try {
-    const ts = new Date().toISOString();
-    const line = `${ts} ${typeof message === 'string' ? message : JSON.stringify(message)}\n`;
-    // Console still for real-time debugging
-    console.log(line.trim());
-
-    // Ensure logsDir exists
-    try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch (e) { }
-
-    // Write to a dated log file: app-YYYY-MM-DD.log
-    try {
-      const date = new Date().toISOString().slice(0, 10);
-      const appLog = path.join(logsDir, `app-${date}.log`);
-      fs.appendFileSync(appLog, line, 'utf8');
-    } catch (err) {
-      // If writing fails, at least output to console
-      console.error('[log] Failed to write to app log:', err.message);
-    }
-  } catch (err) {
-    // Fallback to console
-    try { console.log(new Date().toISOString(), message); } catch (e) { }
-  }
-}
-
-function getAppIcon() {
-  const isWindows = process.platform === 'win32';
-  const iconFile = isWindows ? 'icon.ico' : 'icon.png';
-  let iconPath = null;
-
-  if (app.isPackaged) {
-    // In packaged app, try multiple possible locations
-    const possiblePaths = [
-      path.join(app.getAppPath(), '..', 'build', iconFile),
-      path.join(app.getAppPath(), 'build', iconFile),
-      path.join(process.resourcesPath, 'build', iconFile)
-    ];
-
-    iconPath = possiblePaths.find(p => fs.existsSync(p)) || null;
-    if (!iconPath) {
-      console.warn(`Icon file not found in packaged locations: ${possiblePaths.join(', ')}`);
-      return undefined;
-    }
-  } else {
-    // In development, build folder is at the root
-    iconPath = path.join(__dirname, '..', 'build', iconFile);
-    if (!fs.existsSync(iconPath)) {
-      console.warn(`Icon file not found in development at: ${iconPath}`);
-      return undefined;
-    }
-  }
-
-  // Return undefined if file doesn't exist to use system default
-
-  return iconPath;
-}
-
-function createWindow() {
-  try {
-    const isWindows = process.platform === 'win32';
-    mainWindow = new BrowserWindow({
-      width: 1200,
-      height: 800,
-      minWidth: 1000,
-      minHeight: 700,
-      frame: false,
-      ...(isWindows
-        ? {
-          titleBarOverlay: {
-            color: '#020408',
-            symbolColor: '#a1a1aa',
-            height: 32
-          }
-        }
-        : {}),
-      backgroundColor: '#020408',
-      icon: getAppIcon(),
-      // Wayland-specific options for better compatibility
-      useContentSize: true,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: false,
-        preload: path.join(__dirname, "preload.cjs"),
-        enableRemoteModule: false,
-      },
-    });
-
-    if (app.isPackaged) {
-      const indexPath = path.join(app.getAppPath(), "web-dist", "index.html");
-      if (indexPath) {
-        log(`[createWindow] ✅ Found index.html at: ${indexPath}`);
-        mainWindow.loadFile(indexPath).catch((err) => {
-          log(`[createWindow] ❌ loadFile error: ${err}`);
-          mainWindow.webContents.openDevTools();
-        });
-      } else {
-        log(`[createWindow] ❌ No index.html found in packaged app`);
-        mainWindow.loadURL("data:text/html,<h2 style='font-family:sans-serif;color:#c00'>index.html not found</h2>");
-        mainWindow.webContents.openDevTools();
-      }
-    } else {
-      mainWindow.loadURL("http://localhost:5173");
-      mainWindow.webContents.openDevTools();
-    }
-
-    // Log successful window creation
-    log(`[createWindow] ✅ Window created successfully on ${process.platform}`);
-    if (displayStatus.displayInfo) {
-      log(`[createWindow] ${displayStatus.displayInfo}`);
-    }
-  } catch (err) {
-    log(`[createWindow] ❌ Fatal error creating window: ${err.message}`);
-    // Attempt fallback: headless mode or data URL with error message
-    if (mainWindow) {
-      const errorHTML = `
-        <html>
-          <head>
-            <style>
-              body { 
-                font-family: sans-serif; 
-                padding: 40px; 
-                background: #020408; 
-                color: #e0e0e0;
-              }
-              h1 { color: #ef4444; margin-top: 0; }
-              .warning { 
-                background: #1f2937; 
-                padding: 20px; 
-                border-radius: 8px; 
-                border-left: 4px solid #ef4444;
-              }
-              code { 
-                background: #111827; 
-                padding: 2px 6px; 
-                border-radius: 3px; 
-                font-family: monospace;
-              }
-              .hint {
-                margin-top: 20px;
-                padding: 15px;
-                background: #1e3a8a;
-                border-radius: 6px;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>⚠️ Display Error</h1>
-            <div class="warning">
-              <p><strong>Error:</strong> ${err.message}</p>
-              <p><strong>Platform:</strong> ${process.platform}</p>
-              ${displayStatus.displayWarnings.length > 0 ? `<p><strong>Issues detected:</strong><ul>${displayStatus.displayWarnings.map(w => `<li>${w}</li>`).join('')}</ul></p>` : ''}
-            </div>
-            <div class="hint">
-              <p><strong>Solution for Linux users:</strong></p>
-              <ul>
-                <li>Run without <code>sudo</code>: <code>./MineBench\ Client-0.3.0.AppImage</code></li>
-                <li>Ensure X11 or Wayland is available</li>
-                <li>Check DISPLAY environment: <code>echo $DISPLAY</code></li>
-              </ul>
-            </div>
-          </body>
-        </html>
-      `;
-      mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`);
-    }
-  }
-}
-
-/**
- * Перевірити CPU за наявністю необхідних інструкцій
- * @returns {object} {hasAES, hasAVX, hasAVX2, model}
- */
-function getCPUCapabilities() {
-  try {
-    const cpus = os.cpus();
-    if (cpus.length === 0) {
-      log('[CPU Capabilities] No CPU found');
-      return { hasAES: false, hasAVX: false, hasAVX2: false, model: 'Unknown', cores: 0 };
-    }
-
-    const cpuModel = cpus[0].model || 'Unknown';
-    const modelLower = cpuModel.toLowerCase();
-
-    // Detect CPU flags from model string (Intel style)
-    // Examples: "Intel(R) Core(TM) i7-9700K", "AMD Ryzen 7 5700G"
-    let hasAES = false;
-    let hasAVX = false;
-    let hasAVX2 = false;
-
-    // Default: assume modern CPUs have AVX2, older ones might not
-    // For Intel/AMD, most processors from 2011+ have AVX, 2013+ have AVX2
-    // We'll use model year/generation hints
-    if (modelLower.includes('ryzen 3') || modelLower.includes('ryzen 5') || modelLower.includes('ryzen 7') || modelLower.includes('ryzen 9')) {
-      // Ryzen (all versions have AES, AVX, AVX2)
-      hasAES = true;
-      hasAVX = true;
-      hasAVX2 = true;
-    } else if (modelLower.includes('xeon') || modelLower.includes('i9') || modelLower.includes('i7') || modelLower.includes('i5')) {
-      // Intel processors (most modern ones support these)
-      hasAES = true;
-      hasAVX = true;
-      hasAVX2 = true;
-    } else if (modelLower.includes('i3') || modelLower.includes('pentium')) {
-      // Older Intel
-      hasAES = true;
-      hasAVX = false;
-      hasAVX2 = false;
-    } else if (modelLower.includes('core 2') || modelLower.includes('core duo')) {
-      // Very old Intel
-      hasAES = false;
-      hasAVX = false;
-      hasAVX2 = false;
-    } else {
-      // Unknown - assume modern (AES and AVX2)
-      hasAES = true;
-      hasAVX = true;
-      hasAVX2 = true;
-    }
-
-    const capabilities = {
-      hasAES,
-      hasAVX,
-      hasAVX2,
-      model: cpuModel,
-      cores: cpus.length
-    };
-
-    return capabilities;
-  } catch (err) {
-    log(`[CPU Capabilities Error] ${err.message}`);
-    return { hasAES: false, hasAVX: false, hasAVX2: false, model: 'Unknown', cores: os.cpus().length };
-  }
-}
-
-/**
- * Отримати шлях до правильного бінарника для поточної ОС
- * Підтримує різні версії xmrig для старих та нових CPU
- * @param {string} minerName - назва майнера ('xmrig' або 't-rex')
- * @param {boolean} forceOld - примусово використати старішу версію
- * @returns {string} шлях до бінарника
- */
-function getMinerPath(minerName, forceOld = false) {
-  // Визначити поточну платформу та архітектуру
-  const platform = process.platform; // 'win32', 'darwin', 'linux'
-  const arch = process.arch; // 'x64', 'arm64', тощо
-
-  // Отримати можливості CPU
-  const cpuCaps = getCPUCapabilities();
-  log(`[getMinerPath] CPU: ${cpuCaps.model} | Cores: ${cpuCaps.cores} | AES: ${cpuCaps.hasAES} | AVX: ${cpuCaps.hasAVX} | AVX2: ${cpuCaps.hasAVX2}`);
-
-  // Маппінг назв майнерів на імена папок (case-sensitive)
-  const minerFolderMap = {
-    'xmrig': 'Xmrig',
-    't-rex': 'T-rex'
-  };
-  const minerFolder = minerFolderMap[minerName] || minerName;
-
-  // Маппінг платформ на назви директорій
-  let platformDir;
-  let exeExt = '';
-
-  if (platform === 'win32') {
-    platformDir = arch === 'arm64' ? 'win-arm64' : 'win-x64';
-    exeExt = '.exe';
-  } else if (platform === 'darwin') {
-    platformDir = arch === 'arm64' ? 'macos-arm64' : 'macos-x64';
-  } else if (platform === 'linux') {
-    platformDir = 'linux-x64';
-  } else {
-    throw new Error(`Unsupported platform: ${platform}`);
-  }
-
-  // DECLARE minerExe EARLY - before using it
-  const minerExe = `${minerName}${exeExt}`;
-
-  // Вирішити, яку версію xmrig використати
-  let minerSubDir = '';
-  let selectedVersion = 'standard';
-  if (minerName === 'xmrig') {
-    // Всі версії доступні на всіх платформах
-    // Legacy: v5.11 (Windows) / v6.8 (Linux/macOS) - для старих CPU
-    // Compat: v6.14 - для CPU з AES але без AVX2
-    // Standard: v6.21 - для новітніх CPU з повною підтримкою
-
-    if (forceOld || (!cpuCaps.hasAVX2 && !cpuCaps.hasAES)) {
-      // Try legacy first, fallback to compat if legacy doesn't exist
-      minerSubDir = '/legacy';
-      selectedVersion = 'legacy';
-      const legacyPath = path.join(
-        app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..'),
-        'Miner', minerFolder, platformDir + minerSubDir, minerExe
-      );
-      if (!fs.existsSync(legacyPath)) {
-        log(`[getMinerPath] ⚠️  Legacy binary missing/corrupted at ${legacyPath}, falling back to compat`);
-        minerSubDir = '/compat';
-        selectedVersion = 'compat';
-      }
-      log(`[getMinerPath] ⚠️  SELECTED VERSION: ${selectedVersion.toUpperCase()} (for old CPU without AVX2/AES)`);
-    } else if (!cpuCaps.hasAVX2) {
-      minerSubDir = '/compat';
-      selectedVersion = 'compat';
-      log(`[getMinerPath] ⚠️  SELECTED VERSION: COMPAT (v6.14, AES-only CPU, no AVX2)`);
-    } else {
-      selectedVersion = 'standard';
-      log(`[getMinerPath] ✅ SELECTED VERSION: STANDARD (v6.21, full CPU support with AVX2)`);
-    }
-  }
-
-  if (app.isPackaged) {
-    const resourcesPath = path.dirname(process.execPath);
-    const minerFullPath = path.join(resourcesPath, 'Miner', minerFolder, platformDir + minerSubDir, minerExe);
-    try {
-      const exists = fs.existsSync(minerFullPath);
-      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: ${exists}`);
-    } catch (e) {
-      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: unknown (error: ${e.message})`);
-    }
-    return minerFullPath;
-  } else {
-    const minerFullPath = path.join(__dirname, '..', 'Miner', minerFolder, platformDir + minerSubDir, minerExe);
-    try {
-      const exists = fs.existsSync(minerFullPath);
-      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: ${exists}`);
-    } catch (e) {
-      log(`[getMinerPath] Selected miner path: ${minerFullPath} | exists: unknown (error: ${e.message})`);
-    }
-    return minerFullPath;
-  }
-}
-
 /**
  * Select the best pool URL (primary or backup) based on RPC sync status.
  * Returns a string like 'stratum+tcp://host:port'
  */
 async function selectBestPoolUrl() {
-  const rpcHost = process.env.MB_RPC_HOST || 'xmr.minebench.cloud';
-  const rpcHostBackup = process.env.MB_RPC_HOST_BACKUP || 'xmr2.minebench.cloud';
-
-  // RPC Configuration (for status checks)
-  const useInternalRpc = String(process.env.MB_RPC_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
-  const useInternalRpcBackup = String(process.env.MB_RPC_BACKUP_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
-  const rpcPortExternal = Number(process.env.MB_RPC_PORT) || 32285;
-  const rpcPortInternal = Number(process.env.MB_RPC_PORT_INTERNAL) || 32285;
-  const rpcPortExternalBackup = Number(process.env.MB_RPC_PORT_BACKUP) || 32076;
-  const rpcPortInternalBackup = Number(process.env.MB_RPC_PORT_INTERNAL_BACKUP) || rpcPortInternal;
-
-  // Stratum Configuration (for actual mining)
-  const stratumPort = Number(process.env.MB_STRATUM_PORT) || 31651;
-  const stratumPortBackup = Number(process.env.MB_STRATUM_PORT_BACKUP) || 31915;
-
-  const primaryRpcPort = useInternalRpc ? rpcPortInternal : rpcPortExternal;
-  const backupRpcPort = useInternalRpcBackup ? rpcPortInternalBackup : rpcPortExternalBackup;
+  const {
+    primaryHost: rpcHost,
+    backupHost: rpcHostBackup,
+    primaryRpcPort,
+    backupRpcPort,
+    primaryStratumPort: stratumPort,
+    backupStratumPort: stratumPortBackup
+  } = getPoolEnvConfig();
 
   const primaryUrl = `http://${rpcHost}:${primaryRpcPort}/get_info`;
-  const backupUrl = `http://${rpcHostBackup}:${backupRpcPort}/get_info`;
+  const backupUrl = backupRpcPort ? `http://${rpcHostBackup}:${backupRpcPort}/get_info` : null;
 
   async function probe(url) {
     try {
@@ -1328,28 +1296,33 @@ async function selectBestPoolUrl() {
     return `stratum+tcp://${pool}`;
   }
 
-  const backup = await probe(backupUrl);
-  log('[selectBestPoolUrl] backup probe: ' + JSON.stringify(backup));
-  if (backup.ok && backup.progress >= 99.9) {
-    const pool = `${rpcHostBackup}:${stratumPortBackup}`;
-    log('[selectBestPoolUrl] Selecting BACKUP pool: ' + pool);
-    return `stratum+tcp://${pool}`;
+  if (backupUrl && stratumPortBackup) {
+    const backup = await probe(backupUrl);
+    log('[selectBestPoolUrl] backup probe: ' + JSON.stringify(backup));
+    if (backup.ok && backup.progress >= 99.9) {
+      const pool = `${rpcHostBackup}:${stratumPortBackup}`;
+      log('[selectBestPoolUrl] Selecting BACKUP pool: ' + pool);
+      return `stratum+tcp://${pool}`;
+    }
+
+    if (backup.ok) {
+      const pool = `${rpcHostBackup}:${stratumPortBackup}`;
+      log('[selectBestPoolUrl] Primary unreachable, selecting backup: ' + pool);
+      return `stratum+tcp://${pool}`;
+    }
+  } else {
+    log('[selectBestPoolUrl] Backup stratum/RPC not configured; skipping backup');
   }
 
-  // If neither fully synced, prefer primary if it's at least reachable, else backup if reachable
   if (primary.ok) {
     const pool = `${rpcHost}:${stratumPort}`;
     log('[selectBestPoolUrl] Primary reachable but not fully synced, selecting primary: ' + pool);
     return `stratum+tcp://${pool}`;
   }
-  if (backup.ok) {
-    const pool = `${rpcHostBackup}:${stratumPortBackup}`;
-    log('[selectBestPoolUrl] Primary unreachable, selecting backup: ' + pool);
-    return `stratum+tcp://${pool}`;
-  }
-
-  // Final fallback to environment or default
-  const envPool = process.env.MB_POOL_URL || 'xmr.minebench.cloud:31651';
+  const runtime = getRuntimePool();
+  const envPool = runtime?.primary
+    ? `${runtime.primary.host}:${runtime.primary.stratumPort}`
+    : (process.env.PRIMARY_POOL_URL || process.env.MB_POOL_URL || 'xmr.minebench.cloud:3333');
   log('[selectBestPoolUrl] Falling back to env/default pool: ' + envPool);
   return envPool.includes('://') ? envPool : `stratum+tcp://${envPool}`;
 }
@@ -1377,7 +1350,7 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, solanaWa
     log(`[start-benchmark] 🏷️  Worker: ${worker}`);
 
     // Get and log CPU capabilities
-    const cpuCaps = getCPUCapabilities();
+    const cpuCaps = await getCPUCapabilities();
     log(`[start-benchmark] 💻 CPU Model: ${cpuCaps.model}`);
     log(`[start-benchmark] 🔧 CPU Cores: ${cpuCaps.cores}`);
     log(`[start-benchmark] ⚙️  CPU Features: AES=${cpuCaps.hasAES}, AVX=${cpuCaps.hasAVX}, AVX2=${cpuCaps.hasAVX2}`);
@@ -1420,7 +1393,7 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, solanaWa
       const workerFormatted = worker.replace(/\s+/g, '-');
 
       // Use cross-platform path resolution for Xmrig
-      minerPath = getMinerPath('xmrig');
+      minerPath = await getMinerPath('xmrig');
       minerDir = path.dirname(minerPath);
 
       // Log which xmrig version is being used
@@ -1743,7 +1716,7 @@ ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads, po
     log(`[start-mining] 🏷️  Worker: ${worker}`);
 
     // Get and log CPU capabilities
-    const cpuCaps = getCPUCapabilities();
+    const cpuCaps = await getCPUCapabilities();
     log(`[start-mining] 💻 CPU Model: ${cpuCaps.model}`);
     log(`[start-mining] 🔧 CPU Cores: ${cpuCaps.cores}`);
     log(`[start-mining] ⚙️  CPU Features: AES=${cpuCaps.hasAES}, AVX=${cpuCaps.hasAVX}, AVX2=${cpuCaps.hasAVX2}`);
@@ -1754,7 +1727,7 @@ ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads, po
       return "GPU mining for Monero is currently not supported in this version.";
     } else {
       const workerFormatted = worker.replace(/\s+/g, '-');
-      minerPath = getMinerPath('xmrig');
+      minerPath = await getMinerPath('xmrig');
       minerDir = path.dirname(minerPath);
 
       // Log which xmrig version is being used for mining
@@ -1964,6 +1937,159 @@ ipcMain.handle("resume-mining", async (event) => {
     return `Error: ${err.message}`;
   }
 });
+
+
+
+let mainWindow = null;
+
+
+function getAppIcon() {
+  const isWindows = process.platform === 'win32';
+  const iconFile = isWindows ? 'icon.ico' : 'icon.png';
+  let iconPath = null;
+
+  if (app.isPackaged) {
+    const possiblePaths = [
+      path.join(app.getAppPath(), '..', 'build', iconFile),
+      path.join(app.getAppPath(), 'build', iconFile),
+      path.join(process.resourcesPath, 'build', iconFile)
+    ];
+
+    iconPath = possiblePaths.find(p => fs.existsSync(p)) || null;
+    if (!iconPath) {
+      console.warn(`Icon file not found in packaged locations: ${possiblePaths.join(', ')}`);
+      return undefined;
+    }
+  } else {
+    iconPath = path.join(__dirname, '..', 'build', iconFile);
+    if (!fs.existsSync(iconPath)) {
+      console.warn(`Icon file not found in development at: ${iconPath}`);
+      return undefined;
+    }
+  }
+
+  return iconPath;
+}
+
+function log(message) {
+  try {
+    const ts = new Date().toISOString();
+    const line = `${ts} ${typeof message === 'string' ? message : JSON.stringify(message)}
+`;
+    console.log(line.trim());
+
+    try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch (e) { }
+
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      const appLog = path.join(logsDir, `app-${date}.log`);
+      fs.appendFileSync(appLog, line, 'utf8');
+    } catch (err) {
+      console.error('[log] Failed to write to app log:', err.message);
+    }
+  } catch (err) {
+    try { console.log(new Date().toISOString(), message); } catch (e) { }
+  }
+}
+
+function createWindow() {
+  try {
+    const isWindows = process.platform === 'win32';
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 1000,
+      minHeight: 700,
+      frame: false,
+      ...(isWindows
+        ? {
+          titleBarOverlay: {
+            color: '#020408',
+            symbolColor: '#a1a1aa',
+            height: 32
+          }
+        }
+        : {}),
+      backgroundColor: '#020408',
+      icon: getAppIcon(),
+      useContentSize: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false,
+        preload: path.join(__dirname, "preload.cjs"),
+        enableRemoteModule: false,
+      },
+    });
+
+    if (app.isPackaged) {
+      const indexPath = path.join(app.getAppPath(), "web-dist", "index.html");
+      if (indexPath) {
+        log(`[createWindow] ? Found index.html at: ${indexPath}`);
+        mainWindow.loadFile(indexPath).catch((err) => {
+          log(`[createWindow] ? loadFile error: ${err}`);
+          mainWindow.webContents.openDevTools();
+        });
+      } else {
+        log(`[createWindow] ? No index.html found in packaged app`);
+        mainWindow.loadURL("data:text/html,<h2 style='font-family:sans-serif;color:#c00'>index.html not found</h2>");
+        mainWindow.webContents.openDevTools();
+      }
+    } else {
+      mainWindow.loadURL("http://localhost:5173");
+      mainWindow.webContents.openDevTools();
+    }
+
+    log(`[createWindow] ? Window created successfully on ${process.platform}`);
+    if (displayStatus.displayInfo) {
+      log(`[createWindow] ${displayStatus.displayInfo}`);
+    }
+  } catch (err) {
+    log(`[createWindow] ? Fatal error creating window: ${err.message}`);
+    if (mainWindow) {
+      const errorHTML = `
+        <html>
+          <head>
+            <style>
+              body { 
+                font-family: sans-serif; 
+                padding: 40px; 
+                background: #020408; 
+                color: #e0e0e0;
+              }
+              h1 { color: #ef4444; margin-top: 0; }
+              .warning { 
+                background: #1f2937; 
+                padding: 20px; 
+                border-radius: 8px; 
+                border-left: 4px solid #ef4444;
+              }
+              code { 
+                background: #111827; 
+                padding: 2px 6px; 
+                border-radius: 3px; 
+                font-family: monospace;
+              }
+              .hint {
+                margin-top: 20px;
+                padding: 15px;
+                background: #1e3a8a;
+                border-radius: 6px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class='warning'>
+              <h1>Startup error</h1>
+              <p>${err.message}</p>
+            </div>
+          </body>
+        </html>`;
+      mainWindow.loadURL('data:text/html,' + encodeURIComponent(errorHTML));
+      mainWindow.webContents.openDevTools();
+    }
+  }
+}
 
 app.whenReady().then(createWindow);
 

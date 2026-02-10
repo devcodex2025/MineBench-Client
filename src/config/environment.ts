@@ -3,6 +3,8 @@
  * Управління конфігурацією для розробки та продакшну
  */
 
+import fallbackConfig from '../../config/fallback.json';
+
 export type Environment = 'development' | 'production';
 
 export interface EnvironmentConfig {
@@ -10,6 +12,7 @@ export interface EnvironmentConfig {
   env: Environment;
   isDev: boolean;
   isProd: boolean;
+  enableBackupPool: boolean;
 
   // Wallet Authorization
   walletAuthUrl: string;
@@ -68,11 +71,22 @@ export interface EnvironmentConfig {
   p2poolP2pPortInternal: number;
 }
 
+const toBool = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (value === undefined) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  return defaultValue;
+};
+
+const fallbackDefaults = (fallbackConfig as any)?.defaults || {};
+
 // Development Configuration
 const developmentConfig: EnvironmentConfig = {
   env: 'development',
   isDev: true,
   isProd: false,
+  enableBackupPool: toBool(import.meta.env.VITE_ENABLE_BACKUP_POOL as string | undefined, !!fallbackDefaults.enableBackupPool),
 
   // Production cloud endpoints (use production for wallet services)
   walletAuthUrl: 'https://minebench.cloud/auth',
@@ -83,29 +97,29 @@ const developmentConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.devnet.solana.com',
   bmtTokenMint: (import.meta.env.VITE_BMT_TOKEN_MINT as string) || '67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev',
   poolApiUrl: 'http://localhost:8080/api',
-  poolStratumHost: 'xmr.minebench.cloud',
-  poolStratumPort: Number(import.meta.env.VITE_POOL_STRATUM_PORT) || 31446,
-  poolStratumUrl: `xmr.minebench.cloud:${import.meta.env.VITE_POOL_STRATUM_PORT || 31446}`,
-  poolStratumHostBackup: 'xmr2.minebench.cloud',
-  poolStratumPortBackup: 31915,
-  poolStratumUrlBackup: 'xmr2.minebench.cloud:31915',
-  poolRpcHost: 'xmr.minebench.cloud',
-  poolRpcPort: Number(import.meta.env.VITE_MONERO_RPC_PORT) || 30339,
-  poolRpcUrl: `http://xmr.minebench.cloud:${import.meta.env.VITE_MONERO_RPC_PORT || 30339}/json_rpc`,
-  poolRpcHostBackup: 'xmr2.minebench.cloud',
-  poolRpcPortBackup: 32076,
-  poolRpcUrlBackup: 'http://xmr2.minebench.cloud:32076/json_rpc',
-  moneroP2pPort: Number(import.meta.env.VITE_MONERO_P2P_PORT) || 30396,
-  moneroP2pPortBackup: 31339,
-  moneroRpcPort: Number(import.meta.env.VITE_MONERO_RPC_PORT) || 30339,
-  moneroRpcPortBackup: 32076,
+  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolStratumPort: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
+  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolStratumPortBackup: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
+  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  moneroP2pPort: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
+  moneroP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
+  moneroRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  moneroRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
   moneroZmqPort: 18083,
-  p2poolP2pPort: Number(import.meta.env.VITE_P2POOL_P2P_PORT) || 30681,
-  p2poolP2pPortBackup: 31885,
-  stratumPortInternal: 3333,
-  moneroP2pPortInternal: 18080,
-  moneroRpcPortInternal: 18081,
-  p2poolP2pPortInternal: 37889,
+  p2poolP2pPort: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT) || fallbackDefaults.p2poolP2pPort || 37889,
+  p2poolP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT) || fallbackDefaults.p2poolP2pPort || 37889,
+  stratumPortInternal: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_STRATUM_PORT),
+  moneroP2pPortInternal: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT),
+  moneroRpcPortInternal: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT),
+  p2poolP2pPortInternal: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT),
 };
 
 // Production Configuration
@@ -113,6 +127,7 @@ const productionConfig: EnvironmentConfig = {
   env: 'production',
   isDev: false,
   isProd: true,
+  enableBackupPool: toBool(import.meta.env.VITE_ENABLE_BACKUP_POOL as string | undefined, !!fallbackDefaults.enableBackupPool),
 
   // Production cloud endpoints
   // Production cloud endpoints
@@ -125,29 +140,29 @@ const productionConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
   bmtTokenMint: (import.meta.env.VITE_BMT_TOKEN_MINT as string) || '67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev',
   poolApiUrl: 'https://minebench.cloud/api/pool',
-  poolStratumHost: 'xmr.minebench.cloud',
-  poolStratumPort: Number(import.meta.env.VITE_POOL_STRATUM_PORT) || 31446,
-  poolStratumUrl: `xmr.minebench.cloud:${import.meta.env.VITE_POOL_STRATUM_PORT || 31446}`,
-  poolStratumHostBackup: 'xmr2.minebench.cloud',
-  poolStratumPortBackup: 31915,
-  poolStratumUrlBackup: 'xmr2.minebench.cloud:31915',
-  poolRpcHost: 'xmr.minebench.cloud',
-  poolRpcPort: Number(import.meta.env.VITE_MONERO_RPC_PORT) || 30339,
-  poolRpcUrl: `http://xmr.minebench.cloud:${import.meta.env.VITE_MONERO_RPC_PORT || 30339}/json_rpc`,
-  poolRpcHostBackup: 'xmr2.minebench.cloud',
-  poolRpcPortBackup: 32076,
-  poolRpcUrlBackup: 'http://xmr2.minebench.cloud:32076/json_rpc',
-  moneroP2pPort: Number(import.meta.env.VITE_MONERO_P2P_PORT) || 30396,
-  moneroP2pPortBackup: 31339,
-  moneroRpcPort: Number(import.meta.env.VITE_MONERO_RPC_PORT) || 30339,
-  moneroRpcPortBackup: 32076,
+  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolStratumPort: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
+  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolStratumPortBackup: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
+  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  moneroP2pPort: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
+  moneroP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
+  moneroRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
+  moneroRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
   moneroZmqPort: 18083,
-  p2poolP2pPort: Number(import.meta.env.VITE_P2POOL_P2P_PORT) || 30681,
-  p2poolP2pPortBackup: 31885,
-  stratumPortInternal: 3333,
-  moneroP2pPortInternal: 18080,
-  moneroRpcPortInternal: 18081,
-  p2poolP2pPortInternal: 37889,
+  p2poolP2pPort: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT) || fallbackDefaults.p2poolP2pPort || 37889,
+  p2poolP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT) || fallbackDefaults.p2poolP2pPort || 37889,
+  stratumPortInternal: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_STRATUM_PORT),
+  moneroP2pPortInternal: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT),
+  moneroRpcPortInternal: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT),
+  p2poolP2pPortInternal: Number(import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT_INTERNAL || import.meta.env.VITE_PRIMARY_P2POOL_P2P_PORT),
 };
 
 /**

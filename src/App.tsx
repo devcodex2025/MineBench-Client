@@ -23,12 +23,12 @@ const PoolMonitor = () => {
     const manualPoolSelection = useMinerStore(state => state.manualPoolSelection);
     const env = getEnvironmentConfig();
     const primaryPoolUrl = env.poolStratumUrl;
-    const reservePoolUrl = env.poolStratumUrlBackup;
+    const reservePoolUrl = env.enableBackupPool ? env.poolStratumUrlBackup : '';
 
     useEffect(() => {
         const checkSync = async () => {
             // Check primary and backup CPU pools - GPU pool not deployed yet
-            const poolIds = ['cpu', 'cpu-backup'];
+            const poolIds = env.enableBackupPool ? ['cpu', 'cpu-backup'] : ['cpu'];
             for (const id of poolIds) {
                 try {
                     const res = await window.electron.invoke('get-pool-sync', id);
@@ -44,13 +44,13 @@ const PoolMonitor = () => {
 
             const state = useMinerStore.getState();
             const primaryPool = state.pools?.['cpu'];
-            const reservePool = state.pools?.['cpu-backup'];
+            const reservePool = env.enableBackupPool ? state.pools?.['cpu-backup'] : undefined;
             const primarySynced = !!(primaryPool?.isSynced && primaryPool?.progress >= 99.9);
-            const reserveSynced = !!(reservePool?.isSynced && reservePool?.progress >= 99.9);
-            const isMineBenchPool = [primaryPoolUrl, reservePoolUrl].some((url) => !!url && !!poolUrl && poolUrl.includes(url));
+            const reserveSynced = env.enableBackupPool && !!(reservePool?.isSynced && reservePool?.progress >= 99.9);
+            const isMineBenchPool = [primaryPoolUrl, ...(env.enableBackupPool ? [reservePoolUrl] : [])].some((url) => !!url && !!poolUrl && poolUrl.includes(url));
 
             if (isMineBenchPool && !manualPoolSelection) {
-                if (!primarySynced && reserveSynced && reservePoolUrl && poolUrl !== reservePoolUrl) {
+                if (env.enableBackupPool && !primarySynced && reserveSynced && reservePoolUrl && poolUrl !== reservePoolUrl) {
                     setPoolUrl(reservePoolUrl);
                     addLog('🔁 Auto-switched to CPU Reserve NODE (primary not fully synced).');
                 } else if (primarySynced && primaryPoolUrl && poolUrl !== primaryPoolUrl) {
@@ -480,3 +480,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+
