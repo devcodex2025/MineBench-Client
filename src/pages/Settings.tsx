@@ -287,7 +287,7 @@ export const Settings = () => {
               <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Website:</span>{' '}
               <button
                 type="button"
-                className="text-blue-400 hover:underline"
+                className="text-blue-400 hover:underline cursor-pointer"
                 onClick={() => openExternal('https://minebench.cloud')}
               >
                 minebench.cloud
@@ -298,7 +298,7 @@ export const Settings = () => {
               <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Discord:</span>{' '}
               <button
                 type="button"
-                className="text-blue-400 hover:underline"
+                className="text-blue-400 hover:underline cursor-pointer"
                 onClick={() => openExternal('https://discord.gg/vsDyYh4rma')}
               >
                 discord.gg/vsDyYh4rma
@@ -309,7 +309,7 @@ export const Settings = () => {
               <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Twitter/X:</span>{' '}
               <button
                 type="button"
-                className="text-blue-400 hover:underline"
+                className="text-blue-400 hover:underline cursor-pointer"
                 onClick={() => openExternal('https://x.com/MineBenchdapp')}
               >
                 x.com/MineBenchdapp
@@ -356,11 +356,10 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   );
 
   const presetPools = [
-    { name: 'MineBench Pool (Primary)', url: 'xmr.minebench.cloud:31651' },
-    { name: 'MineBench Pool (Reserve)', url: 'xmr2.minebench.cloud:31915' },
+    { name: 'MineBench Pool (Primary)', url: env.poolStratumUrl },
+    ...(env.enableBackupPool ? [{ name: 'MineBench Pool (Reserve)', url: env.poolStratumUrlBackup }] : []),
     { name: 'SupportXMR', url: 'pool.supportxmr.com:3333' },
     { name: 'MoneroOcean', url: 'gulf.moneroocean.stream:10032' },
-    { name: 'MineBench Cloud (Production)', url: env.poolStratumUrl },
   ];
 
   const save = async () => {
@@ -418,7 +417,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         <input
           value={localPool}
           onChange={(e) => setLocalPool(e.target.value)}
-          placeholder="host:port (e.g., xmr.minebench.cloud:31651)"
+          placeholder="host:port (e.g., xmr.minebench.cloud:3333)"
           className={cn(
             'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
             theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'

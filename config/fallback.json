@@ -1,10 +1,16 @@
 {
   "publicConfigUrl": "https://backend.minebench.cloud/public/config",
   "poolConfigAllowlist": [
+    "pool.minebench.cloud",
+    "node.minebench.cloud",
     "xmr.minebench.cloud",
     "xmr2.minebench.cloud"
   ],
   "defaults": {
+    "primaryPoolHost": "pool.minebench.cloud",
+    "primaryRpcHost": "node.minebench.cloud",
+    "backupPoolHost": "xmr2.minebench.cloud",
+    "backupRpcHost": "xmr2.minebench.cloud",
     "primaryHost": "xmr.minebench.cloud",
     "backupHost": "xmr2.minebench.cloud",
     "stratumPort": 3333,

@@ -115,6 +115,7 @@ interface MinerSettings {
     hugePages: boolean;
     deviceType: DeviceType;
     manualPoolSelection: boolean;
+    updatedAt?: number;
 }
 
 const env = getEnvironmentConfig();
@@ -180,7 +181,18 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     setWalletVerified: (verified, solanaKey) => set({ walletVerified: verified, solanaPublicKey: solanaKey }),
     setStatus: (status) => set({ status, isRunning: status === 'running', isPaused: status === 'paused' }),
     setThreads: (threads) => set({ threads }),
-    setCpuInfo: (cpuName, cpuCores) => set({ cpuName, cpuCores, threads: cpuCores }),
+    setCpuInfo: (cpuName, cpuCores) => set((state) => {
+        const safeCores = Math.max(1, cpuCores || 1);
+        const currentThreads = Number.isFinite(state.threads) && state.threads > 0
+            ? state.threads
+            : safeCores;
+        return {
+            cpuName,
+            cpuCores: safeCores,
+            // Keep user-selected threads; only clamp if it exceeds available cores.
+            threads: Math.min(currentThreads, safeCores)
+        };
+    }),
     setDonateLevel: (donateLevel) => set({ donateLevel }),
     setPoolUrl: (poolUrl) => set({ poolUrl }),
     setCpuPriority: (cpuPriority) => set({ cpuPriority }),
@@ -257,7 +269,8 @@ export const useMinerStore = create<MiningState>((set, get) => ({
             randomxMode: state.randomxMode,
             hugePages: state.hugePages,
             deviceType: state.deviceType,
-            manualPoolSelection: state.manualPoolSelection
+            manualPoolSelection: state.manualPoolSelection,
+            updatedAt: Date.now()
         };
 
         try {
@@ -279,31 +292,40 @@ export const useMinerStore = create<MiningState>((set, get) => ({
 
     loadSettings: async () => {
         const state = get();
-        let settings: MinerSettings | null = null;
+        let electronSettings: MinerSettings | null = null;
+        let localSettings: MinerSettings | null = null;
 
         try {
             if (window.electron?.invoke) {
                 const res = await window.electron.invoke('load-miner-settings');
                 if (res?.success && res.settings) {
-                    settings = res.settings as MinerSettings;
+                    electronSettings = res.settings as MinerSettings;
                 }
             }
         } catch (err) {
             console.error('Failed to load miner settings from Electron:', err);
         }
 
-        if (!settings) {
-            try {
-                const saved = localStorage.getItem('minerSettings');
-                if (saved) settings = JSON.parse(saved) as MinerSettings;
-            } catch (err) {
-                console.error('Failed to load miner settings from localStorage:', err);
-            }
+        try {
+            const saved = localStorage.getItem('minerSettings');
+            if (saved) localSettings = JSON.parse(saved) as MinerSettings;
+        } catch (err) {
+            console.error('Failed to load miner settings from localStorage:', err);
         }
+
+        const electronUpdatedAt = Number(electronSettings?.updatedAt || 0);
+        const localUpdatedAt = Number(localSettings?.updatedAt || 0);
+        const settings = localUpdatedAt >= electronUpdatedAt
+            ? (localSettings || electronSettings)
+            : (electronSettings || localSettings);
 
         if (!settings) return;
 
-        const nextPoolUrl = (!env.enableBackupPool && settings.poolUrl && settings.poolUrl.includes(env.poolStratumUrlBackup))
+        const legacyBackupHostSelected = !!(
+            settings.poolUrl &&
+            settings.poolUrl.includes('xmr2.minebench.cloud')
+        );
+        const nextPoolUrl = (!env.enableBackupPool && (legacyBackupHostSelected || (settings.poolUrl && settings.poolUrl.includes(env.poolStratumUrlBackup))))
             ? env.poolStratumUrl
             : (settings.poolUrl || state.poolUrl);
 

@@ -463,7 +463,7 @@ const Benchmark = () => {
                             onClick={status === 'running' ? stopBenchmark : startBenchmark}
                             disabled={status === 'stopping' || (!isNodeFullySynced && status !== 'running')}
                             className={cn(
-                                "w-full py-4 rounded-lg font-bold text-sm tracking-wide transition-all transform active:scale-[0.98]",
+                                "w-full py-4 rounded-lg font-bold text-sm tracking-wide transition-all transform active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed",
                                 status === 'running' 
                                     ? "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20"
                                     : (theme === 'light'

@@ -153,10 +153,10 @@ Create `.env` file:
 ```env
 # RPC endpoint (monerod)
 MB_RPC_HOST=xmr.minebench.cloud
-MB_RPC_PORT=30595
+MB_RPC_PORT=18081
 
 # Stratum endpoint (P2Pool)
-MB_POOL_URL=xmr.minebench.cloud:30832
+MB_POOL_URL=xmr.minebench.cloud:3333
 ```
 
 ## 📖 Usage

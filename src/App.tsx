@@ -279,7 +279,7 @@ const Dashboard = () => {
                         <span className={theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'}>Status:</span>
                         <span className={cn(
                             theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
-                        )}>Multi-Node Active</span>
+                        )}>{getEnvironmentConfig().enableBackupPool ? 'Multi-Node Active' : 'Single-Node Active'}</span>
                     </div>
                 </div>
             </div>

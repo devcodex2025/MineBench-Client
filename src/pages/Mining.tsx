@@ -87,6 +87,7 @@ const Mining: React.FC = () => {
     const setDonateLevel = useMinerStore((state) => state.setDonateLevel);
     const poolUrl = useMinerStore((state) => state.poolUrl);
     const setPoolUrl = useMinerStore((state) => state.setPoolUrl);
+    const manualPoolSelection = useMinerStore((state) => state.manualPoolSelection);
     const updateStats = useMinerStore((state) => state.updateStats);
     const history = useMinerStore((state) => state.history);
     const currentHashrate = useMinerStore((state) => state.currentHashrate);
@@ -156,6 +157,7 @@ const Mining: React.FC = () => {
     const [bmtBalance, setBmtBalance] = useState(0);
     const [walletValid, setWalletValid] = useState(false);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
+    const isSolanaConnected = !!user?.publicKey;
 
     // Load CPU info
     useEffect(() => {
@@ -245,12 +247,22 @@ const Mining: React.FC = () => {
         if (!window.electron.on) return;
         const offLog = window.electron.on('miner-log', (msg: string) => {
             const line = msg.toLowerCase();
-            if (line.includes('connection refused') || (line.includes('error') && line.includes('connect'))) {
+            const isConnectError =
+                line.includes('connection refused') ||
+                line.includes('failed to connect') ||
+                line.includes('connect error') ||
+                line.includes('login failed') ||
+                line.includes('stratum connection failed') ||
+                line.includes('network error');
+            if (isConnectError) {
                 setStatus('error');
-                addLog('❌ Connection error');
+                addLog(`❌ Mining connection error: ${msg.trim()}`);
             }
             if (line.includes('connected') || line.includes('login succeeded') || line.includes('new job')) {
-                if (status === 'starting') setStatus('running');
+                if (status !== 'running') {
+                    setStatus('running');
+                    addLog('✅ Miner connected to pool');
+                }
             }
         });
         return () => { if (offLog) offLog(); };
@@ -548,6 +560,10 @@ const Mining: React.FC = () => {
 
     const startMining = async () => {
         if (status === 'running' || status === 'starting') return;
+        if (!isSolanaConnected) {
+            addLog('⚠️ Connect Solana wallet before starting mining.');
+            return;
+        }
         if (!isNodeFullySynced) {
             addLog('⏳ Node is not fully synced (100%). Mining is disabled until sync completes.');
             return;
@@ -567,7 +583,8 @@ const Mining: React.FC = () => {
                 hugePages,
                 donateLevel,
                 poolUrl,
-                solanaWallet: user?.publicKey, // Raw Solana address (no encoding)
+                manualPoolSelection,
+                solanaWallet: user!.publicKey, // Raw Solana address (no encoding)
             });
 
             setStatus('starting');
@@ -850,6 +867,17 @@ const Mining: React.FC = () => {
                                     ⚠️ Невалідна адреса Monero гаманця. Будь ласка, оновіть гаманець перед початком майнінгу.
                                 </div>
                             )}
+                            {!isSolanaConnected && status !== 'running' && status !== 'starting' && (
+                                <div className={cn(
+                                    "col-span-2 p-3 rounded-xl text-xs border flex items-center justify-center gap-2",
+                                    theme === 'light'
+                                        ? 'bg-emerald-50 border-emerald-300 text-zinc-500'
+                                        : 'bg-emerald-500/12 border-emerald-500/35 text-zinc-400'
+                                )}>
+                                    <Shield size={14} className="shrink-0" />
+                                    <span>Connect Solana wallet to start mining and receive rewards.</span>
+                                </div>
+                            )}
                             {!isNodeFullySynced && status !== 'running' && status !== 'starting' && (
                                 <div className={cn("col-span-2 p-3 rounded-lg text-xs text-center border",
                                     theme === 'light'
@@ -867,7 +895,7 @@ const Mining: React.FC = () => {
                                             ? startMining
                                             : pauseMining
                                 }
-                                disabled={status === 'starting' || (!walletValid && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping')) || (!isNodeFullySynced && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping'))}
+                                disabled={status === 'starting' || (!walletValid && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping')) || (!isSolanaConnected && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping')) || (!isNodeFullySynced && (status === 'idle' || status === 'completed' || status === 'error' || status === 'stopping'))}
                                 className={cn(
                                     'py-3.5 px-4 rounded-xl font-semibold text-sm tracking-tight transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer',
                                     status === 'running' || status === 'paused'
