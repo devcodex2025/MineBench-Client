@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Play, Square, Pause, Play as PlayIcon, Flame, Gauge, Zap, Shield, Cpu, TrendingUp, Clock, Activity, Thermometer, HardDrive, Info, Hourglass } from 'lucide-react';
 import { useMinerStore } from '../store/useMinerStore';
@@ -6,6 +6,7 @@ import { useSolanaAuth } from '../services/solanaAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, formatHashrate } from '../lib/utils';
 import { p2poolAPI } from '../services/p2poolAPI';
+import type { P2PoolStratumSnapshot } from '../services/p2poolAPI';
 import { getEnvironmentConfig } from '../config/environment';
 
 // Extend window type for API error logging
@@ -128,10 +129,13 @@ const Mining: React.FC = () => {
         hasRamData: false
     });
     const [showHugePagesInfo, setShowHugePagesInfo] = useState(false);
+    const [stratumStats, setStratumStats] = useState<P2PoolStratumSnapshot | null>(null);
+    const [lastKnownHashrate, setLastKnownHashrate] = useState<number>(0);
 
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const timeIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const poolStatsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const hasPersistedInitialChartStateRef = useRef<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [peakHashrate, setPeakHashrate] = useState(0);
     const [poolNetworkHashrate, setPoolNetworkHashrate] = useState(300000000000); // Default Monero difficulty
@@ -172,6 +176,51 @@ const Mining: React.FC = () => {
         };
         loadCpuInfo();
     }, [setCpuInfo]);
+
+    useEffect(() => {
+        try {
+            const stored = Number(localStorage.getItem('minebench_last_hashrate') || 0);
+            if (Number.isFinite(stored) && stored > 0) {
+                setLastKnownHashrate(stored);
+            }
+        } catch {
+            // Ignore persistence read errors
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!Number.isFinite(currentHashrate) || currentHashrate <= 0) return;
+        setLastKnownHashrate(currentHashrate);
+    }, [currentHashrate]);
+
+    useEffect(() => {
+        if (hasPersistedInitialChartStateRef.current) return;
+        const firstValidPoint = history.find((point) => Number.isFinite(point?.hashrate) && (point?.hashrate || 0) > 0);
+        if (!firstValidPoint) return;
+
+        try {
+            localStorage.setItem('minebench_last_hashrate', String(firstValidPoint.hashrate));
+            hasPersistedInitialChartStateRef.current = true;
+        } catch {
+            // Ignore persistence write errors
+        }
+    }, [history]);
+
+    const chartData = useMemo(() => {
+        const hasLiveData = history.some((point) => (point?.hashrate || 0) > 0);
+        if (hasLiveData) return history;
+
+        // Show a calm placeholder trend based on last known hashrate or a default baseline.
+        const base = lastKnownHashrate > 0 ? lastKnownHashrate : 250;
+        const now = Date.now();
+        const offsets = [0.93, 0.98, 0.95, 1.02, 1.0, 1.04, 0.99, 1.01, 0.97, 1.03, 1.0, 0.96];
+        return offsets.map((factor, idx) => ({
+            time: new Date(now - (offsets.length - idx) * 5000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            hashrate: Math.round(base * factor),
+            temp: null,
+            power: 0
+        }));
+    }, [history, lastKnownHashrate]);
 
     // Load miner settings from localStorage/Electron on component mount
     useEffect(() => {
@@ -304,6 +353,7 @@ const Mining: React.FC = () => {
         const fetchPoolStats = async () => {
             try {
                 const stats = await p2poolAPI.getPoolStats();
+                setStratumStats(stats.stratum || null);
                 
                 if (stats && stats.poolDifficulty) {
                     // Calculate network hashrate from difficulty
@@ -321,14 +371,12 @@ const Mining: React.FC = () => {
             }
         };
 
-        if (status === 'running' || status === 'paused') {
-            fetchPoolStats();
-            poolStatsIntervalRef.current = setInterval(fetchPoolStats, 60000); // Update every 60s
-            return () => {
-                if (poolStatsIntervalRef.current) clearInterval(poolStatsIntervalRef.current);
-            };
-        }
-    }, [status]);
+        fetchPoolStats();
+        poolStatsIntervalRef.current = setInterval(fetchPoolStats, 30000); // Update every 30s
+        return () => {
+            if (poolStatsIntervalRef.current) clearInterval(poolStatsIntervalRef.current);
+        };
+    }, [setGlobalPoolStats, setPoolNetworkHashrateStore]);
 
     useEffect(() => {
         if (status !== 'running') {
@@ -685,11 +733,10 @@ const Mining: React.FC = () => {
                     </span>
                 </div>
             </div>
-
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 {/* Chart */}
                 <div className="xl:col-span-2">
-                    <HashRateChart data={history} theme={theme} />
+                    <HashRateChart data={chartData} theme={theme} />
                 </div>
 
                 {/* Right Panel */}
@@ -933,6 +980,35 @@ const Mining: React.FC = () => {
                         </div>
                     </div>
 
+                    <div className={cn("border rounded-xl p-5 space-y-4",
+                        theme === 'light'
+                            ? 'bg-white border-zinc-200'
+                            : 'bg-zinc-900/50 border-white/10'
+                    )}>
+                        <div className="flex items-center justify-between">
+                            <span className={cn("text-sm font-semibold", theme === 'light' ? 'text-zinc-700' : 'text-zinc-300')}>Pool Stats</span>
+                            <span className={cn("text-[10px] uppercase tracking-widest", theme === 'light' ? 'text-zinc-500' : 'text-zinc-500')}>
+                                {stratumStats ? (stratumStats.wallet ? 'Live' : 'No Wallet') : 'Waiting for backend stats...'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <StatCard label="15m Avg" value={formatHashrate(stratumStats?.hashrate_15m || poolHashrateTotal || 0)} icon={<Activity size={12} />} tone="blue" theme={theme} />
+                            <StatCard label="1h Avg" value={formatHashrate(stratumStats?.hashrate_1h || 0)} icon={<TrendingUp size={12} />} tone="emerald" theme={theme} />
+                            <StatCard label="24h Avg" value={formatHashrate(stratumStats?.hashrate_24h || 0)} icon={<Clock size={12} />} tone="violet" theme={theme} />
+                            <StatCard label="Workers" value={`${stratumStats?.workers?.length || poolMinersCount || 0}`} icon={<Cpu size={12} />} tone="sky" theme={theme} />
+                            <StatCard label="Connections" value={`${stratumStats?.connections || poolMinersCount || 0}`} icon={<Shield size={12} />} tone="cyan" theme={theme} />
+                            <StatCard label="Accepted Shares" value={`${stratumStats?.total_stratum_shares || 0}`} icon={<Zap size={12} />} tone="teal" theme={theme} />
+                            <StatCard label="Failed Shares" value={`${stratumStats?.shares_failed || 0}`} icon={<Flame size={12} />} tone="rose" theme={theme} />
+                            <StatCard label="Total Hashes" value={((stratumStats?.total_hashes || 0)).toLocaleString()} icon={<Gauge size={12} />} tone="amber" theme={theme} />
+                        </div>
+                        <div className={cn("text-xs pt-1 border-t", theme === 'light' ? 'border-zinc-200 text-zinc-600' : 'border-white/10 text-zinc-500')}>
+                            <div>Current Effort: {(((stratumStats?.current_effort || 0) * 100)).toFixed(2)}%</div>
+                            <div>Average Effort: {(((stratumStats?.average_effort || 0) * 100)).toFixed(2)}%</div>
+                            <div>Share Found: {stratumStats?.shares_found || 0}</div>
+                            <div>Reward Share: {(((stratumStats?.block_reward_share_percent || 0))).toFixed(3)}%</div>
+                        </div>
+                    </div>
+
                     {/* System Resource Monitor */}
                     {(systemStats.hasCpuData || systemStats.hasRamData) && (
                         <div className={cn("border rounded-xl p-5 space-y-3",
@@ -1036,11 +1112,35 @@ const Mining: React.FC = () => {
     );
 };
 
-const StatCard = ({ label, value, icon, theme }: { label: string; value: string; icon: React.ReactNode; theme: string }) => (
-    <div className={cn("rounded-lg border p-3 flex flex-col gap-1",
+const StatCard = ({
+    label,
+    value,
+    icon,
+    tone = 'blue',
+    theme
+}: {
+    label: string;
+    value: string;
+    icon: React.ReactNode;
+    tone?: 'blue' | 'emerald' | 'violet' | 'sky' | 'cyan' | 'teal' | 'rose' | 'amber';
+    theme: string;
+}) => {
+    const tones = {
+        blue: { light: 'border-l-blue-500 text-zinc-700', dark: 'border-l-blue-400 text-zinc-300' },
+        emerald: { light: 'border-l-emerald-500 text-zinc-700', dark: 'border-l-emerald-400 text-zinc-300' },
+        violet: { light: 'border-l-violet-500 text-zinc-700', dark: 'border-l-violet-400 text-zinc-300' },
+        sky: { light: 'border-l-sky-500 text-zinc-700', dark: 'border-l-sky-400 text-zinc-300' },
+        cyan: { light: 'border-l-cyan-500 text-zinc-700', dark: 'border-l-cyan-400 text-zinc-300' },
+        teal: { light: 'border-l-teal-500 text-zinc-700', dark: 'border-l-teal-400 text-zinc-300' },
+        rose: { light: 'border-l-rose-500 text-zinc-700', dark: 'border-l-rose-400 text-zinc-300' },
+        amber: { light: 'border-l-amber-500 text-zinc-700', dark: 'border-l-amber-400 text-zinc-300' }
+    } as const;
+    const palette = tones[tone];
+    return (
+    <div className={cn("rounded-lg border border-l-2 p-3 flex flex-col gap-1",
         theme === 'light'
-            ? 'bg-white border-zinc-200'
-            : 'bg-zinc-950/70 border-white/5'
+            ? `bg-zinc-50 border-zinc-200 ${palette.light}`
+            : `bg-zinc-900/70 border-zinc-700/70 ${palette.dark}`
     )}>
         <div className={cn("flex items-center gap-2 text-xs uppercase tracking-widest", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>
             {icon}
@@ -1049,6 +1149,7 @@ const StatCard = ({ label, value, icon, theme }: { label: string; value: string;
         <div className={cn("text-lg font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{value}</div>
     </div>
 );
+};
 
 const MetricCard = React.memo(({ label, value, icon, color, theme }: { label: string; value: string; icon: React.ReactNode; color: 'emerald' | 'yellow' | 'blue'; theme: string }) => {
     const colorMap = {

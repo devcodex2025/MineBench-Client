@@ -10,7 +10,7 @@ import { DeveloperSettings } from './DeveloperSettings';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme } = useTheme();
-  const { sessionRewards, status, pools, poolNetworkHashrate, poolMinersCount, xmrUsd, bmtUsd, rateXmrBmt } = useMinerStore();
+  const { sessionRewards, status, pools, poolHashrateTotal, poolMinersCount, xmrUsd, bmtUsd, rateXmrBmt } = useMinerStore();
   const poolLabels: Record<string, string> = {
     'cpu': 'CPU Primary',
     'cpu-backup': 'CPU Reserve'
@@ -163,7 +163,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                   theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'
                 )}>
                     <span className={cn("mr-2", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>NET_HASH:</span>
-                    {formatHashrate(poolNetworkHashrate)}
+                    {formatHashrate(poolHashrateTotal)}
                 </div>
                 <div className={cn("font-mono text-sm",
                   theme === 'light' ? 'text-zinc-700' : 'text-zinc-400'

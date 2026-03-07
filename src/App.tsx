@@ -258,15 +258,23 @@ const Dashboard = () => {
     const MIN_CLAIM_AMOUNT = 100;
     const canClaim = safeDbTotalBMT >= MIN_CLAIM_AMOUNT;
     const claimProgress = Math.min((safeDbTotalBMT / MIN_CLAIM_AMOUNT) * 100, 100);
+    const [claiming, setClaiming] = useState(false);
 
     // Convert $BMT to XMR (example rate: 1000 BMT = 1 XMR)
     const BMT_TO_XMR_RATE = 1000;
     const xmrEquivalent = safeDbTotalBMT / BMT_TO_XMR_RATE;
 
-    const handleClaimRewards = () => {
-        if (canClaim) {
-            // TODO: Implement actual claim logic (blockchain transaction)
-            alert(`Claiming ${safeDbTotalBMT.toFixed(2)} $BMT (${xmrEquivalent.toFixed(6)} XMR) rewards!`);
+    const handleClaimRewards = async () => {
+        if (!canClaim || claiming) return;
+        try {
+            setClaiming(true);
+            const result = await SolanaAuthService.getInstance().requestPayout(safeDbTotalBMT);
+            await SolanaAuthService.getInstance().fetchMiningStats(user?.publicKey || '');
+            alert(`Claim request created: ${result?.id || 'OK'}`);
+        } catch (err: any) {
+            alert(err?.message || 'Failed to create claim request');
+        } finally {
+            setClaiming(false);
         }
     };
 
@@ -281,6 +289,22 @@ const Dashboard = () => {
                             theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
                         )}>{getEnvironmentConfig().enableBackupPool ? 'Multi-Node Active' : 'Single-Node Active'}</span>
                     </div>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className={cn(
+                    "rounded-lg border px-4 py-3 flex items-center justify-between",
+                    theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-900/50 border-white/10'
+                )}>
+                    <span className={cn("text-xs uppercase tracking-wider", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Current Pool Hashrate</span>
+                    <span className={cn("text-sm font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{formatHashrate(poolHashrateTotal)}</span>
+                </div>
+                <div className={cn(
+                    "rounded-lg border px-4 py-3 flex items-center justify-between",
+                    theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-900/50 border-white/10'
+                )}>
+                    <span className={cn("text-xs uppercase tracking-wider", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Miners Online</span>
+                    <span className={cn("text-sm font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{poolMinersCount}</span>
                 </div>
             </div>
 
@@ -432,10 +456,10 @@ const Dashboard = () => {
 
                     <button
                         onClick={handleClaimRewards}
-                        disabled={!canClaim}
+                        disabled={!canClaim || claiming}
                         className={cn(
                             "w-full mt-4 py-3 rounded-lg font-bold text-sm tracking-wide transition-all transform",
-                            canClaim
+                            canClaim && !claiming
                                 ? "bg-emerald-500 text-zinc-950 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-[0.98]"
                                 : theme === 'light'
                                     ? "bg-zinc-300 text-zinc-500 cursor-not-allowed"
@@ -444,7 +468,11 @@ const Dashboard = () => {
                     >
                         <div className="flex items-center justify-center gap-2">
                             <TrendingUp size={16} />
-                            {canClaim ? `Claim ${safeDbTotalBMT.toFixed(2)} $BMT` : `Claim (Min. ${MIN_CLAIM_AMOUNT} $BMT)`}
+                            {claiming
+                                ? 'Creating claim...'
+                                : canClaim
+                                    ? `Claim ${safeDbTotalBMT.toFixed(2)} $BMT`
+                                    : `Claim (Min. ${MIN_CLAIM_AMOUNT} $BMT)`}
                         </div>
                     </button>
                 </div>

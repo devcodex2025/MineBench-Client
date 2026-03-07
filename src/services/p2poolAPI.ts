@@ -29,17 +29,38 @@ export interface P2PoolStats {
   networkHashrate?: number;
   networkDifficulty?: number;
   lastBlockTime?: number;
+  stratum?: P2PoolStratumSnapshot;
+}
+
+export interface P2PoolStratumSnapshot {
+  hashrate_15m?: number;
+  hashrate_1h?: number;
+  hashrate_24h?: number;
+  total_hashes?: number;
+  total_stratum_shares?: number;
+  last_share_found_time?: number;
+  shares_found?: number;
+  shares_failed?: number;
+  average_effort?: number;
+  current_effort?: number;
+  connections?: number;
+  incoming_connections?: number;
+  block_reward_share_percent?: number;
+  wallet?: string;
+  workers?: string[];
 }
 
 class P2PoolService {
   private rpcHost: string;
   private rpcPort: number;
   private staleTime = 5000; // 5 seconds cache
+  private apiBaseUrl: string;
 
   constructor(host?: string, port?: number) {
     const env = getEnvironmentConfig();
     this.rpcHost = host ?? env.poolRpcHost;
     this.rpcPort = port ?? env.poolRpcPort;
+    this.apiBaseUrl = env.apiBaseUrl;
   }
 
   private async rpcCall(method: string, params: any = {}) {
@@ -100,14 +121,24 @@ class P2PoolService {
       }
 
       // Fetch global pool stats from MineBench backend
-      let poolExtra = { poolHashrate: 0, miners: 0 };
+      let poolExtra: { poolHashrate: number; miners: number; stratum: P2PoolStratumSnapshot | null } = {
+        poolHashrate: 0,
+        miners: 0,
+        stratum: null
+      };
       try {
-        // Use relative URL for Vite proxy in development
-        const res = await fetch('/api/pool/stats', { signal: AbortSignal.timeout(15000) });
+        // In packaged Electron (file://) relative /api paths don't work; use absolute backend URL.
+        const canUseRelativeApi = typeof window !== 'undefined'
+          && (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+          && window.location.hostname === 'localhost';
+        const poolStatsUrl = canUseRelativeApi ? '/api/pool/stats' : `${this.apiBaseUrl.replace(/\/+$/, '')}/pool/stats`;
+
+        const res = await fetch(poolStatsUrl, { signal: AbortSignal.timeout(15000) });
         if (res.ok) {
           const data = await res.json();
           poolExtra.poolHashrate = data.poolHashrate || 0;
           poolExtra.miners = data.miners || 0;
+          poolExtra.stratum = (data && typeof data.stratum === 'object') ? data.stratum : null;
         } else {
           console.warn(`[P2PoolAPI] Backend returned status ${res.status} for pool stats`);
         }
@@ -116,13 +147,14 @@ class P2PoolService {
       }
 
       return {
-        // Use real hashrate from backend if available, otherwise estimate from difficulty
-        poolHashrate: poolExtra.poolHashrate || (info.difficulty / 120),
+        // Use real hashrate from backend only; do not substitute with network estimate.
+        poolHashrate: poolExtra.poolHashrate || 0,
         miners: poolExtra.miners || 0,
         poolDifficulty: info.difficulty || 0,
         networkHashrate: info.difficulty / 120,
         networkDifficulty: info.difficulty || 0,
-        lastBlockTime: Date.now() - 30000 // Mock last block since get_info doesn't have it directly
+        lastBlockTime: Date.now() - 30000, // Mock last block since get_info doesn't have it directly
+        stratum: poolExtra.stratum || undefined
       };
     } catch (err) {
       console.error('[P2PoolAPI] Failed to get pool stats:', err);

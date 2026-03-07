@@ -960,7 +960,7 @@ ipcMain.handle('solana-get-token-balance', async (event, { owner, mint }) => {
 });
 
 // === P2Pool RPC IPC Handler (to bypass CORS) ===
-ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'xmr.minebench.cloud', port = 18081 }) => {
+ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'node.minebench.cloud', port = 18081 }) => {
   try {
     return await new Promise((resolve, reject) => {
       const postData = JSON.stringify({
@@ -1072,12 +1072,24 @@ function getRuntimePool() {
   return runtimePoolConfig;
 }
 
+function mapLegacyPrimaryHost(host, role = 'stratum') {
+  const normalized = String(host || '').trim().toLowerCase();
+  if (normalized !== 'xmr.minebench.cloud') return host;
+  return role === 'rpc' ? 'node.minebench.cloud' : 'xmr.minebench.cloud';
+}
+
 function getPoolEnvConfig() {
   const runtime = getRuntimePool();
   const defaults = fallbackConfig.defaults || {};
-  const primaryPoolHost = runtime?.primary?.stratumHost || runtime?.primary?.host || process.env.PRIMARY_POOL_HOST || process.env.MB_POOL_HOST || defaults.primaryPoolHost || defaults.primaryHost || 'xmr.minebench.cloud';
+  const primaryPoolHost = mapLegacyPrimaryHost(
+    runtime?.primary?.stratumHost || runtime?.primary?.host || process.env.PRIMARY_POOL_HOST || process.env.MB_POOL_HOST || defaults.primaryPoolHost || defaults.primaryHost || 'xmr.minebench.cloud',
+    'stratum'
+  );
   const backupPoolHost = runtime?.backup?.stratumHost || runtime?.backup?.host || process.env.BACKUP_POOL_HOST || process.env.MB_POOL_HOST_BACKUP || defaults.backupPoolHost || defaults.backupHost || 'xmr2.minebench.cloud';
-  const primaryRpcHost = runtime?.primary?.rpcHost || process.env.PRIMARY_RPC_HOST || process.env.MB_RPC_HOST || defaults.primaryRpcHost || defaults.primaryHost || primaryPoolHost;
+  const primaryRpcHost = mapLegacyPrimaryHost(
+    runtime?.primary?.rpcHost || process.env.PRIMARY_RPC_HOST || process.env.MB_RPC_HOST || defaults.primaryRpcHost || defaults.primaryHost || primaryPoolHost,
+    'rpc'
+  );
   const backupRpcHost = runtime?.backup?.rpcHost || process.env.BACKUP_RPC_HOST || process.env.MB_RPC_HOST_BACKUP || defaults.backupRpcHost || defaults.backupHost || backupPoolHost;
 
   const useInternalRpc = String(process.env.PRIMARY_RPC_USE_INTERNAL ?? process.env.MB_RPC_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
@@ -1110,7 +1122,7 @@ function getPoolEnvConfig() {
 ipcMain.handle('get-pool-sync', async (event, poolId) => {
   // Mapping IDs to their RPC ports
   // Development: Local Docker containers with mapped RPC ports
-  // Production: MineBench Cloud node deployed on Akash (xmr.minebench.cloud)
+  // Production: MineBench Cloud node deployed on Akash (node.minebench.cloud)
   // NOTE: RPC port is forwarded on Akash; keep this in sync with current lease
   const {
     primaryRpcHost: rpcHost,
@@ -1253,7 +1265,7 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
   }
 
   // For production Akash pool: show actual RPC status
-  if (config.host === 'xmr.minebench.cloud') {
+  if (config.host === 'node.minebench.cloud') {
     return {
       success: false,
       id: poolId,

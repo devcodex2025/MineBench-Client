@@ -325,7 +325,7 @@ export class SolanaAuthService {
         return this.getEmptyStats();
       }
 
-      const response = await fetch(`${API_BASE_URL}/ledger/balance`, {
+      const response = await fetch(`${API_BASE_URL}/rewards/balance`, {
         headers: {
           'Authorization': `Bearer ${storedToken}`
         }
@@ -340,8 +340,11 @@ export class SolanaAuthService {
       }
 
       const balanceData = await response.json();
-      // balanceData typically looks like { user_id, balance, currency, updated_at }
-      const bmtBalance = balanceData?.balance || 0;
+      const toNum = (v: any) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const bmtBalance = toNum(balanceData?.bmt_available ?? balanceData?.balance ?? 0);
 
       // Update miner store with confirmed balance
       useMinerStore.getState().setDbTotalBMT(bmtBalance);
@@ -362,6 +365,33 @@ export class SolanaAuthService {
       console.error('[SolanaAuth] Failed to fetch mining stats:', err);
       return this.getEmptyStats();
     }
+  }
+
+  async requestPayout(amount: number): Promise<any> {
+    const storedToken = localStorage.getItem('minebench_auth_token');
+    if (!storedToken) {
+      throw new Error('Authentication required');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/rewards/claim`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${storedToken}`
+      },
+      body: JSON.stringify({ amount })
+    });
+
+    if (!response.ok) {
+      let message = `Claim failed (${response.status})`;
+      try {
+        const payload = await response.json();
+        message = payload?.message || payload?.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+
+    return response.json();
   }
 
   private getEmptyStats(): UserMiningStats {

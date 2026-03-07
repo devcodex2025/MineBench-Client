@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getEnvironmentConfig } from '../config/environment';
+import { SolanaAuthService } from '../services/solanaAuth';
 
 interface ClaimRewardsModalProps {
   isOpen: boolean;
@@ -55,27 +55,8 @@ export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
     setIsLoading(true);
 
     try {
-      // Call backend API to create withdrawal request
-      const apiBase = getEnvironmentConfig().apiBaseUrl;
-      const response = await fetch(`${apiBase}/withdraw`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wallet,
-          amount: amountNum,
-          signature: 'placeholder', // TODO: Sign with wallet
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Withdrawal failed');
-      }
-
-      const data = await response.json();
-      setSuccess(`Withdrawal request submitted! ID: ${data.withdrawal.id}`);
+      const data = await SolanaAuthService.getInstance().requestPayout(amountNum);
+      setSuccess(`Withdrawal request submitted! ID: ${data.id || 'N/A'}`);
       setAmount('');
 
       // Close modal after 3 seconds
