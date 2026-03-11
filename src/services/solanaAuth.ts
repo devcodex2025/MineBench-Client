@@ -30,7 +30,10 @@ export interface MiningDevice {
 }
 
 export interface UserMiningStats {
-  totalRewards: number; // all time
+  totalRewards: number; // BMT available (bmt_available)
+  totalXmrMined?: number; // total XMR earned from pool
+  totalBmtEarned?: number; // total BMT ever credited
+  totalBmtWithdrawn?: number; // total BMT withdrawn
   thisMonth: number;
   thisWeek: number;
   today: number;
@@ -163,6 +166,13 @@ export class SolanaAuthService {
         useSolanaAuth.getState().setUser(user);
         localStorage.setItem('minebench_user', JSON.stringify(user));
         localStorage.setItem('minebench_signature', result.signature);
+
+        // Sync premium status to MinerStore
+        const { setIsPremium, setPremiumXmrWallet } = useMinerStore.getState();
+        setIsPremium(!!result.isPremium);
+        if (result.premiumXmrWallet) {
+          setPremiumXmrWallet(result.premiumXmrWallet);
+        }
 
         // Standard message used for signing (keep in sync with backend logic)
         const message = "MineBench Authentication Hook: " + result.publicKey;
@@ -345,12 +355,34 @@ export class SolanaAuthService {
         return Number.isFinite(n) ? n : 0;
       };
       const bmtBalance = toNum(balanceData?.bmt_available ?? balanceData?.balance ?? 0);
+      const totalXmrMined = toNum(balanceData?.total_xmr_mined ?? balanceData?.xmr_total_earned ?? 0);
+      const totalBmtEarned = toNum(balanceData?.total_bmt_earned ?? balanceData?.bmt_total_earned ?? 0);
+      const totalBmtWithdrawn = toNum(balanceData?.total_bmt_withdrawn ?? balanceData?.bmt_total_withdrawn ?? 0);
 
-      // Update miner store with confirmed balance
-      useMinerStore.getState().setDbTotalBMT(bmtBalance);
+      // Update miner store with confirmed balance and totals
+      const { setDbTotalBMT, setIsPremium, setPremiumXmrWallet } = useMinerStore.getState();
+      setDbTotalBMT(bmtBalance);
+
+      // Check premium status via IPC
+      if (window.electron?.ipcRenderer) {
+        try {
+          const premiumData = await window.electron.ipcRenderer.invoke('get-premium-status', publicKey);
+          if (premiumData) {
+            setIsPremium(!!premiumData.isPremium);
+            if (premiumData.xmrWallet) {
+              setPremiumXmrWallet(premiumData.xmrWallet);
+            }
+          }
+        } catch (e) {
+          console.error('[SolanaAuth] Failed to sync premium status via IPC:', e);
+        }
+      }
 
       const stats: UserMiningStats = {
         totalRewards: bmtBalance,
+        totalXmrMined,
+        totalBmtEarned,
+        totalBmtWithdrawn,
         thisMonth: 0,
         thisWeek: 0,
         today: 0,
@@ -397,6 +429,9 @@ export class SolanaAuthService {
   private getEmptyStats(): UserMiningStats {
     return {
       totalRewards: 0,
+      totalXmrMined: 0,
+      totalBmtEarned: 0,
+      totalBmtWithdrawn: 0,
       thisMonth: 0,
       thisWeek: 0,
       today: 0,

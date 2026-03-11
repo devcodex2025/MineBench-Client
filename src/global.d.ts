@@ -20,6 +20,7 @@ declare global {
       onMinerLog: (callback: (event: any, data: string) => void) => () => void;
       getDisplayStatus: () => Promise<DisplayStatus>;
       logToFile: (level: string, message: string, source?: string) => void;
+      openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       ipcRenderer: {
         invoke: (channel: string, ...args: any[]) => Promise<any>;
         on: (channel: string, func: (...args: any[]) => void) => () => void;

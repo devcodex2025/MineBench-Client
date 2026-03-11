@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle } from 'lucide-react';
+import { Download, RefreshCw, Info, Settings as SettingsIcon, CheckCircle, Lock, ExternalLink } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
 import { useMinerStore } from '../store/useMinerStore';
@@ -127,78 +127,6 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Updates Section (temporarily disabled)
-      <div className={cardClass}>
-        <div className="flex items-start gap-3 mb-4">
-          <Download size={20} className={cn("mt-1 flex-shrink-0", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')} />
-          <div className="flex-1">
-            <h2 className={cn("text-lg font-semibold", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Updates</h2>
-            <p className={cn("mt-1", textClass)}>Check for the latest version and features</p>
-          </div>
-        </div>
-
-        <div className="space-y-3 ml-8">
-          <div className={cn("flex items-center justify-between p-3 rounded border",
-            theme === 'light'
-              ? 'bg-zinc-100 border-zinc-300'
-              : 'bg-zinc-800/50 border-white/5'
-          )}>
-            <div>
-              <p className={cn("text-sm font-medium", theme === 'light' ? 'text-zinc-900' : 'text-white')}>Latest Version</p>
-              <p className={cn("text-xs mt-1", theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>v{LATEST_VERSION}</p>
-            </div>
-            <div className="text-right">
-              {APP_VERSION === LATEST_VERSION ? (
-                <span className={cn("text-xs font-medium", theme === 'light' ? 'text-emerald-600' : 'text-emerald-400')}>Up to Date</span>
-              ) : (
-                <span className="text-xs text-yellow-400 font-medium">Update Available</span>
-              )}
-            </div>
-          </div>
-
-          <button
-            onClick={handleCheckUpdates}
-            disabled={checkingUpdates}
-            className={cn("w-full flex items-center justify-center gap-2 px-4 py-2 rounded border transition-colors text-sm font-medium cursor-pointer",
-              theme === 'light'
-                ? 'bg-zinc-200 hover:bg-zinc-300 disabled:bg-zinc-200 disabled:opacity-50 text-zinc-900 border-zinc-300'
-                : 'bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-800 disabled:opacity-50 text-zinc-200 border-white/5'
-            )}
-          >
-            <RefreshCw size={16} className={checkingUpdates ? 'animate-spin' : ''} />
-            {checkingUpdates ? 'Checking...' : 'Check for Updates'}
-          </button>
-
-          {updateChecked && !checkingUpdates && (
-            <div className={cn("flex items-center gap-2 p-3 rounded border text-sm",
-              theme === 'light'
-                ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-600'
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-            )}>
-              <CheckCircle size={16} />
-              <span>You are using the latest version</span>
-            </div>
-          )}
-
-          {updateAvailable && (
-            <button
-              onClick={handleDownloadUpdate}
-              className={cn(
-                "w-full flex items-center justify-center gap-2 px-4 py-2 rounded border transition-colors text-sm font-medium",
-                theme === 'light'
-                  ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 border-emerald-400/50'
-                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30'
-              )}
-            >
-              <Download size={16} />
-              Download Latest Version
-            </button>
-          )}
-
-        </div>
-      </div>
-      */}
-
       {/* Other Settings */}
       <div className={cardClass}>
         <div className="flex items-start gap-3 mb-4">
@@ -258,7 +186,7 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Mining Configuration (disabled for now)
+      {/* Mining Configuration */}
       <div className={cardClass}>
         <div className="flex items-start gap-3 mb-4">
           <SettingsIcon size={20} className="text-yellow-400 mt-1 flex-shrink-0" />
@@ -270,7 +198,6 @@ export const Settings = () => {
 
         <MiningConfigForm theme={theme} />
       </div>
-      */}
 
       {/* About Section */}
       <div className={cardClass}>
@@ -338,6 +265,8 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const wallet = useMinerStore((s) => s.wallet);
   const poolUrl = useMinerStore((s) => s.poolUrl);
   const donateLevel = useMinerStore((s) => s.donateLevel);
+  const isPremium = useMinerStore((s) => s.isPremium);
+  
   const setWallet = useMinerStore((s) => s.setWallet);
   const setPoolUrl = useMinerStore((s) => s.setPoolUrl);
   const setDonateLevel = useMinerStore((s) => s.setDonateLevel);
@@ -349,7 +278,15 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const [saving, setSaving] = useState(false);
   const validation = useMemo(() => validateXmrWallet(localWallet), [localWallet]);
 
-  // Local label style (fix: avoid referencing outer component variables)
+  const openExternal = useCallback(async (url: string) => {
+    if (window.electron?.openExternal) {
+      await window.electron.openExternal(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  }, []);
+
+  // Local label style
   const labelClass = cn(
     'text-xs font-bold uppercase tracking-widest',
     theme === 'light' ? 'text-zinc-600' : 'text-zinc-500'
@@ -363,7 +300,7 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   ];
 
   const save = async () => {
-    if (!validation.ok) return;
+    if (!validation.ok || !isPremium) return;
     setSaving(true);
     try {
       setWallet(localWallet.trim());
@@ -377,40 +314,96 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
 
   return (
     <div className="space-y-4 ml-8">
+      {/* Premium Lock Overlay for Wallet */}
+      {!isPremium && (
+        <div className={cn(
+          "p-4 rounded-xl border flex flex-col items-center text-center gap-3",
+          theme === 'light' ? 'bg-amber-50 border-amber-200' : 'bg-amber-500/10 border-amber-500/20'
+        )}>
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Lock size={20} className="text-amber-500" />
+          </div>
+          <div>
+            <p className={cn("text-xs font-black uppercase tracking-[0.2em]", theme === 'light' ? 'text-amber-900' : 'text-amber-400')}>Premium Feature</p>
+            <p className={cn("text-xs mt-1 font-medium", theme === 'light' ? 'text-amber-800' : 'text-amber-200/50')}>
+              Custom Monero wallet support requires a Premium License ($29/year).
+            </p>
+          </div>
+          <button
+            onClick={() => openExternal('https://minebench.cloud/premium')}
+            className={cn(
+               "flex items-center gap-2 px-6 py-2 rounded-full text-[10px] font-bold transition-all transform hover:scale-102 cursor-pointer shadow-lg active:scale-95",
+               theme === 'light' 
+                ? "bg-zinc-900 text-white hover:bg-zinc-800 shadow-zinc-950/20"
+                : "bg-amber-500 text-black hover:bg-amber-400 shadow-amber-500/20"
+            )}
+          >
+            UPGRADE TO PREMIUM <ExternalLink size={10} />
+          </button>
+        </div>
+      )}
+
       {/* Wallet */}
-      <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
+      <div className={cn(
+        "p-4 rounded-xl border relative overflow-hidden group",
+        theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-900/40 border-white/5'
+      )}>
         <label className={labelClass}>Wallet Address (XMR)</label>
-        <input
-          value={localWallet}
-          onChange={(e) => setLocalWallet(e.target.value)}
-          placeholder="Enter your Monero wallet"
-          className={cn(
-            'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
-            theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
-          )}
-        />
-        {!validation.ok && (
+        <div className="relative mt-2">
+          <input
+            value={localWallet}
+            onChange={(e) => setLocalWallet(e.target.value)}
+            placeholder="Enter your Monero wallet"
+            disabled={!isPremium}
+            className={cn(
+              'w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all',
+              theme === 'light' 
+                ? 'bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-emerald-500/50' 
+                : 'bg-zinc-950/50 border-white/10 text-white focus:border-emerald-500/30',
+              !isPremium && "cursor-not-allowed grayscale"
+            )}
+          />
+        </div>
+
+        {/* Central Lock Overlay */}
+        {!isPremium && (
+          <div className="absolute inset-0 bg-zinc-950/50 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all group-hover:bg-zinc-950/60">
+             <div className="p-3 bg-zinc-900/90 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center gap-1 scale-90 group-hover:scale-100 transition-transform">
+                <Lock size={20} className="text-amber-500" />
+                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Locked</span>
+             </div>
+          </div>
+        )}
+
+        {isPremium && !validation.ok && (
           <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-red-600' : 'text-red-400')}>{validation.reason}</div>
         )}
       </div>
 
       {/* Pool Selection */}
-      <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
-        <label className={labelClass}>Mining Pool</label>
-        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div className={cn(
+        "p-4 rounded-xl border relative overflow-hidden group",
+        theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-900/40 border-white/5'
+      )}>
+        <div className="flex items-center justify-between mb-3">
+          <label className={labelClass}>Mining Pool</label>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {presetPools.map((p) => (
             <button
               key={p.url}
-              onClick={() => setLocalPool(p.url)}
+              onClick={() => isPremium && setLocalPool(p.url)}
+              disabled={!isPremium}
               className={cn(
-                'px-3 py-2 rounded border text-sm text-left',
+                'px-4 py-3 rounded-lg border text-sm text-center transition-all',
                 localPool === p.url
-                  ? theme === 'light' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : theme === 'light' ? 'bg-white border-zinc-300 text-zinc-800' : 'bg-zinc-900 border-white/10 text-white'
+                  ? theme === 'light' ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-lg shadow-emerald-500/5'
+                  : theme === 'light' ? 'bg-zinc-50 border-zinc-200 text-zinc-800' : 'bg-zinc-950/50 border-white/10 text-white',
+                !isPremium && "cursor-not-allowed opacity-50"
               )}
             >
-              <div className="font-medium">{p.name}</div>
-              <div className="text-xs opacity-70">{p.url}</div>
+              <div className="font-bold text-xs uppercase tracking-tight">{p.name}</div>
+              <div className="text-[10px] opacity-60 font-mono mt-0.5">{p.url}</div>
             </button>
           ))}
         </div>
@@ -418,48 +411,41 @@ const MiningConfigForm: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
           value={localPool}
           onChange={(e) => setLocalPool(e.target.value)}
           placeholder="host:port (e.g., xmr.minebench.cloud:3333)"
+          disabled={!isPremium}
           className={cn(
-            'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
-            theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
+            'mt-3 w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all font-mono',
+            theme === 'light' 
+              ? 'bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-emerald-500/50' 
+              : 'bg-zinc-950/50 border-white/10 text-white focus:border-emerald-500/30',
+            !isPremium && "cursor-not-allowed grayscale"
           )}
         />
-        <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Protocol will be set automatically to `stratum+tcp://`.</div>
+
+        {/* Central Lock Overlay */}
+        {!isPremium && (
+          <div className="absolute inset-0 bg-zinc-950/50 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all group-hover:bg-zinc-950/60">
+             <div className="p-3 bg-zinc-900/90 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center gap-1 scale-90 group-hover:scale-100 transition-transform">
+                <Lock size={20} className="text-amber-500" />
+                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Locked</span>
+             </div>
+          </div>
+        )}
       </div>
 
-      {/* Donate Level */}
-      {false && (
-        <div className={cn("p-3 rounded border", theme === 'light' ? 'bg-white border-zinc-200' : 'bg-zinc-800/50 border-white/5')}>
-          <label className={labelClass}>Donate Level</label>
-          <input
-            type="number"
-            min={0}
-            max={5}
-            value={localDonate}
-            onChange={(e) => setLocalDonate(Number(e.target.value))}
-            className={cn(
-              'mt-2 w-full px-3 py-2 rounded border text-sm outline-none',
-              theme === 'light' ? 'bg-white border-zinc-300 text-zinc-900' : 'bg-zinc-900 border-white/10 text-white'
-            )}
-          />
-          <div className={cn('mt-2 text-xs', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Xmrig default is 1%. Set 0 to disable.</div>
-        </div>
-      )}
-
-      <div className="flex gap-2">
+      <div className="flex gap-3 pt-2">
         <button
           onClick={save}
-          disabled={saving || !validation.ok}
+          disabled={saving || !validation.ok || !isPremium}
           className={cn(
-            'px-4 py-2 rounded border text-sm font-semibold',
-            saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+            'px-8 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95',
+            (saving || !isPremium) ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:shadow-emerald-500/20 hover:-translate-y-0.5',
             theme === 'light' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-500 text-black border-emerald-500'
           )}
         >
-          Save Configuration
+          {isPremium ? 'Save Configuration' : 'Premium Only'}
         </button>
-        <div className={cn('text-xs self-center', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Changes apply on next start.</div>
+        <div className={cn('text-[10px] self-center uppercase tracking-widest font-bold opacity-30', theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>Changes apply on next start.</div>
       </div>
     </div>
   );
 };
-

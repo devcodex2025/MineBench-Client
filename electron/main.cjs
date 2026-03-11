@@ -332,6 +332,35 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
 
 const workerNameGlobal = os.cpus()[0].model.replace(/\s+/g, '-') ?? "MineBench-Client";
 const supabase = createClient('https://mmwtuyllptkelcfujaod.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1td3R1eWxscHRrZWxjZnVqYW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NDA2ODIsImV4cCI6MjA3NjUxNjY4Mn0.CGVlOAFfRWR9MyRpYW99gppLgVMcrG8sz83bO3YEhoA')
+
+// Premium status tracking
+let isPremium = false;
+let premiumXmrWallet = null;
+
+async function checkPremiumStatus(publicKey) {
+  if (!publicKey) return { isPremium: false, xmrWallet: null };
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('is_premium, xmr_wallet')
+      .eq('wallet_address', publicKey)
+      .single();
+
+    if (error) {
+      console.error('[Supabase] Premium check error:', error);
+      return { isPremium: false, xmrWallet: null };
+    }
+
+    return {
+      isPremium: data?.is_premium || false,
+      xmrWallet: data?.xmr_wallet || null
+    };
+  } catch (err) {
+    console.error('[Supabase] Premium check critical error:', err);
+    return { isPremium: false, xmrWallet: null };
+  }
+}
+
 let deviceUID;
 let miner = null;
 let currentMinerType = null; // 'cpu' or 'gpu'
@@ -369,6 +398,10 @@ ipcMain.handle('get-cpu-info', async () => {
 
 ipcMain.handle('get-cpu-cores', () => {
   return os.cpus().length;
+});
+
+ipcMain.handle('get-premium-status', async (event, publicKey) => {
+  return await checkPremiumStatus(publicKey);
 });
 
 
@@ -840,9 +873,20 @@ ipcMain.handle('solana-connect-wallet', async () => {
 
     // Wait for callback
     return new Promise((resolve, reject) => {
-      oauthCallback = (data) => {
+      oauthCallback = async (data) => {
         console.log('[Solana] Callback received:', { publicKey: data.publicKey?.slice(0, 8) + '...' });
-        resolve(data);
+        
+        // Check premium status
+        const premiumData = await checkPremiumStatus(data.publicKey);
+        isPremium = premiumData.isPremium;
+        premiumXmrWallet = premiumData.xmrWallet;
+        console.log('[Solana] Premium status:', { isPremium, hasWallet: !!premiumXmrWallet });
+
+        resolve({
+          ...data,
+          isPremium,
+          premiumXmrWallet
+        });
         oauthCallback = null;
       };
 
@@ -1450,6 +1494,14 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, solanaWa
 
       // Determine best pool URL (primary vs backup) based on RPC sync status
       let poolUrl = await selectBestPoolUrl();
+      let finalWallet = wallet;
+
+      if (isPremium && premiumXmrWallet) {
+        finalWallet = premiumXmrWallet;
+        poolUrl = "pool.supportxmr.com:443";
+        log(`[start-benchmark] ⭐ PREMIUM MODE: Mining directly to ${finalWallet} on ${poolUrl}`);
+      }
+
       if (!poolUrl.includes('://')) poolUrl = `stratum+tcp://${poolUrl}`;
 
       // New architecture: Pass Solana wallet as username to P2Pool
@@ -1459,13 +1511,13 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, solanaWa
       args = [
         "--coin", "monero",
         "-o", poolUrl,
-        "-u", wallet,
+        "-u", finalWallet,
         "-p", "x",
         "--rig-id", solanaWallet, // Raw Solana address (no encoding)
         "--http-enabled",
         "--http-host", "127.0.0.1",
         "--http-port", "4077",
-        "--donate-level", "0"
+        "--donate-level", "1"
       ];
 
       // Add threads parameter if specified
@@ -1816,7 +1868,7 @@ ipcMain.handle("start-mining", async (event, { type, wallet, worker, threads, po
         "--http-enabled",
         "--http-host", "127.0.0.1",
         "--http-port", "4077",
-        "--donate-level", "0",
+        "--donate-level", String(Math.max(0, Math.min(5, Number(donateLevel) || 0))),
         "--cpu-priority", finalCpuPriority.toString(),
         "--randomx-mode", finalRandomxMode
       ];

@@ -74,7 +74,7 @@ HashRateChart.displayName = 'HashRateChart';
 
 const Mining: React.FC = () => {
     const { theme } = useTheme();
-    const { user } = useSolanaAuth(); // Get Solana user for BMT rewards
+    const { user, miningStats } = useSolanaAuth(); // Get Solana user and lifetime stats (XMR/BMT)
     const status = useMinerStore((state) => state.status);
     const setStatus = useMinerStore((state) => state.setStatus);
     const addLog = useMinerStore((state) => state.addLog);
@@ -99,6 +99,8 @@ const Mining: React.FC = () => {
     const setGlobalPoolStats = useMinerStore((state) => state.setGlobalPoolStats);
     const loadSettings = useMinerStore((state) => state.loadSettings);
     const saveSettings = useMinerStore((state) => state.saveSettings);
+    const isPremium = useMinerStore((state) => state.isPremium);
+    const premiumXmrWallet = useMinerStore((state) => state.premiumXmrWallet);
 
     const threads = useMinerStore((state) => state.threads);
     const setThreads = useMinerStore((state) => state.setThreads);
@@ -711,26 +713,39 @@ const Mining: React.FC = () => {
                 </div>
 
                 {/* Status Badge */}
-                <div className={cn('inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-medium transition-all',
-                    status === 'running' ? (theme === 'light' ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400') :
-                        status === 'starting' ? (theme === 'light' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-400') :
-                            status === 'paused' ? (theme === 'light' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-blue-500/40 bg-blue-500/10 text-blue-400') :
-                                status === 'error' ? (theme === 'light' ? 'border-red-300 bg-red-50 text-red-700' : 'border-red-500/30 bg-red-500/10 text-red-400') :
-                                    (theme === 'light' ? 'border-zinc-200 bg-zinc-50 text-zinc-600' : 'border-white/10 bg-white/5 text-zinc-400')
-                )}>
-                    <span className={cn('w-2 h-2 rounded-full',
-                        status === 'running' ? 'bg-emerald-500 animate-pulse' :
-                            status === 'starting' ? 'bg-amber-500 animate-pulse' :
-                                status === 'paused' ? 'bg-blue-500' :
-                                    status === 'error' ? 'bg-red-500' : 'bg-zinc-400'
-                    )}></span>
-                    <span>
-                        {status === 'running' ? 'Mining' :
-                            status === 'starting' ? 'Connecting' :
-                                status === 'paused' ? 'Paused' :
-                                    status === 'completed' ? 'Completed' :
-                                        status === 'error' ? 'Error' : 'Idle'}
-                    </span>
+                <div className="flex items-center gap-2">
+                    {isPremium && (
+                        <div className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all",
+                            theme === 'light'
+                                ? "bg-amber-100 border-amber-200 text-amber-700 shadow-amber-100"
+                                : "bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+                        )}>
+                            <Flame size={12} className="animate-pulse" />
+                            Premium Direct Mining
+                        </div>
+                    )}
+                    <div className={cn('inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-medium transition-all',
+                        status === 'running' ? (theme === 'light' ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400') :
+                            status === 'starting' ? (theme === 'light' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-400') :
+                                status === 'paused' ? (theme === 'light' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-blue-500/40 bg-blue-500/10 text-blue-400') :
+                                    status === 'error' ? (theme === 'light' ? 'border-red-300 bg-red-50 text-red-700' : 'border-red-500/30 bg-red-500/10 text-red-400') :
+                                        (theme === 'light' ? 'border-zinc-200 bg-zinc-50 text-zinc-600' : 'border-white/10 bg-white/5 text-zinc-400')
+                    )}>
+                        <span className={cn('w-2 h-2 rounded-full',
+                            status === 'running' ? 'bg-emerald-500 animate-pulse' :
+                                status === 'starting' ? 'bg-amber-500 animate-pulse' :
+                                    status === 'paused' ? 'bg-blue-500' :
+                                        status === 'error' ? 'bg-red-500' : 'bg-zinc-400'
+                        )}></span>
+                        <span>
+                            {status === 'running' ? 'Mining' :
+                                status === 'starting' ? 'Connecting' :
+                                    status === 'paused' ? 'Paused' :
+                                        status === 'completed' ? 'Completed' :
+                                            status === 'error' ? 'Error' : 'Idle'}
+                        </span>
+                    </div>
                 </div>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -1105,6 +1120,38 @@ const Mining: React.FC = () => {
                                 {(Number.isFinite(bmtBalance) ? bmtBalance : 0).toFixed(2)} BMT
                             </div>
                         </div>
+
+                        {/* Lifetime stats from backend (total XMR mined, total BMT earned) */}
+                        {(Number(miningStats?.totalXmrMined ?? 0) > 0 || Number(miningStats?.totalBmtEarned ?? 0) > 0) && (
+                            <>
+                                <div className={cn("border-t", theme === 'light' ? 'border-zinc-200' : 'border-white/5')} />
+                                <div className={cn("text-xs uppercase tracking-wide pt-1", theme === 'light' ? 'text-zinc-500' : 'text-zinc-500')}>
+                                    Lifetime (from pool)
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                        <span className={cn(theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>XMR mined: </span>
+                                        <span className={cn("font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
+                                            {(miningStats?.totalXmrMined ?? 0).toFixed(8)}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className={cn(theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>BMT earned: </span>
+                                        <span className={cn("font-mono", theme === 'light' ? 'text-emerald-800' : 'text-emerald-400')}>
+                                            {(miningStats?.totalBmtEarned ?? 0).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    {(Number(miningStats?.totalBmtWithdrawn ?? 0) > 0) && (
+                                        <div className="col-span-2">
+                                            <span className={cn(theme === 'light' ? 'text-zinc-600' : 'text-zinc-400')}>BMT withdrawn: </span>
+                                            <span className={cn("font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>
+                                                {(miningStats?.totalBmtWithdrawn ?? 0).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

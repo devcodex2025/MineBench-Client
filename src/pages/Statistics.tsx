@@ -208,12 +208,30 @@ export const MiningStatistics: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Award className="w-5 h-5" />}
-          title="Total Rewards"
-          value={`${safeTotalRewards.toFixed(4)} $BMT`}
-          subtitle={undefined}
+          title="Available BMT"
+          value={`${(Number.isFinite(miningStats?.totalRewards) ? miningStats.totalRewards : safeTotalRewards).toFixed(4)} $BMT`}
+          subtitle="From backend"
           trend={12.5}
           theme={theme}
         />
+        {(Number(miningStats?.totalXmrMined ?? 0) > 0 || Number(miningStats?.totalBmtEarned ?? 0) > 0) && (
+          <>
+            <StatCard
+              icon={<Zap className="w-5 h-5" />}
+              title="Total XMR Mined"
+              value={`${(miningStats?.totalXmrMined ?? 0).toFixed(6)} XMR`}
+              subtitle="Lifetime from pool"
+              theme={theme}
+            />
+            <StatCard
+              icon={<Award className="w-5 h-5" />}
+              title="Total BMT Earned"
+              value={`${(miningStats?.totalBmtEarned ?? 0).toFixed(2)} BMT`}
+              subtitle="Lifetime credited"
+              theme={theme}
+            />
+          </>
+        )}
         <StatCard
           icon={<TrendingUp className="w-5 h-5" />}
           title="This Session"

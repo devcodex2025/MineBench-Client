@@ -38,6 +38,8 @@ interface MiningState {
     totalRewards: number;
     p2poolBalance: number; // XMR balance in P2Pool
     dbTotalBMT: number;   // Confirmed total BMT rewards from backend
+    isPremium: boolean;
+    premiumXmrWallet: string | null;
 
     // xmrig Settings
     donateLevel: number;
@@ -90,10 +92,12 @@ interface MiningState {
     setRandomxMode: (mode: 'auto' | 'fast' | 'light') => void;
     setHugePages: (enabled: boolean) => void;
     setDbTotalBMT: (balance: number) => void;
+    setIsPremium: (isPremium: boolean) => void;
+    setPremiumXmrWallet: (wallet: string | null) => void;
     setP2PoolBalance: (balance: number) => void;
     setManualPoolSelection: (manual: boolean) => void;
     addLog: (msg: string) => void;
-    updateStats: (hashrate: number, temp: number | null, power?: number) => void;
+    updateStats: (hashrate: number, temp: number | null | undefined, power?: number) => void;
     updatePoolStatus: (id: string, status: Partial<MiningState['pools'][string]>) => void;
     setGlobalPoolStats: (hashrate: number, miners: number, networkHashrate?: number) => void;
     setPoolNetworkHashrate: (networkHashrate: number) => void;
@@ -149,6 +153,8 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     totalRewards: 0,
     dbTotalBMT: 0,
     p2poolBalance: 0,
+    isPremium: false,
+    premiumXmrWallet: null,
 
     donateLevel: 1,
     poolUrl: env.poolStratumUrl,
@@ -199,6 +205,8 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     setRandomxMode: (randomxMode) => set({ randomxMode }),
     setHugePages: (hugePages) => set({ hugePages }),
     setDbTotalBMT: (dbTotalBMT) => set({ dbTotalBMT }),
+    setIsPremium: (isPremium) => set({ isPremium }),
+    setPremiumXmrWallet: (premiumXmrWallet) => set({ premiumXmrWallet }),
     setP2PoolBalance: (p2poolBalance) => set({ p2poolBalance }),
     setManualPoolSelection: (manualPoolSelection) => set({ manualPoolSelection }),
 
@@ -228,7 +236,7 @@ export const useMinerStore = create<MiningState>((set, get) => ({
         ratesLastUpdated: new Date().toLocaleString()
     }),
 
-    updateStats: (hashrate: number, temp: number | null, power?: number) => set((state) => {
+    updateStats: (hashrate: number, temp: number | null | undefined, power?: number) => set((state) => {
         const safeHashrate = hashrate || 0;
         const rewardTick = (safeHashrate / 1000000) * 0.1 / 3600; // 0.1 BMT per MH/hr
         const newTotal = (state.totalRewards || 0) + rewardTick;
