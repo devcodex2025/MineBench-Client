@@ -29,6 +29,11 @@ certs/
 .env.local
 .env.signing
 .env
+.sh
+*.ps1
+*.yml
+*.yaml
+*.sql
 .env.*
 
 # Editor directories and files
