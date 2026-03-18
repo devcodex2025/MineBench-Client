@@ -38,6 +38,16 @@ function loadFallbackConfig() {
 }
 
 const fallbackConfig = loadFallbackConfig() || {};
+const supabaseUrl =
+  process.env.MB_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  fallbackConfig.supabaseUrl ||
+  'https://your-project.supabase.co';
+const supabaseAnonKey =
+  process.env.MB_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  fallbackConfig.supabaseAnonKey ||
+  'your_supabase_anon_key_here';
 
 // === Public Pool Config (remote) ===
 let runtimePoolConfig = null;
@@ -331,7 +341,7 @@ if (process.platform === 'linux' && process.env.WAYLAND_DISPLAY) {
 // === End Wayland Configuration ===
 
 const workerNameGlobal = os.cpus()[0].model.replace(/\s+/g, '-') ?? "MineBench-Client";
-const supabase = createClient('https://mmwtuyllptkelcfujaod.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1td3R1eWxscHRrZWxjZnVqYW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NDA2ODIsImV4cCI6MjA3NjUxNjY4Mn0.CGVlOAFfRWR9MyRpYW99gppLgVMcrG8sz83bO3YEhoA')
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Premium status tracking
 let isPremium = false;
