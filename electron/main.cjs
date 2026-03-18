@@ -6,6 +6,7 @@ const si = require('systeminformation');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { randomUUID } = crypto;
+const net = require('net');
 const deviceIdFile = path.join(app.getPath('userData'), 'device_id.txt');
 const os = require('os');
 const http = require('http');
@@ -93,6 +94,12 @@ function isAllowedHost(host, allowlist) {
   return allowAny || allowlist.has(normalized);
 }
 
+function isIpLiteral(host) {
+  if (!host || typeof host !== 'string') return false;
+  const normalized = host.trim().replace(/^\[(.*)\]$/, '$1');
+  return net.isIP(normalized) !== 0;
+}
+
 function normalizePoolConfig(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const primary = raw.pool && raw.pool.primary;
@@ -105,7 +112,7 @@ function normalizePoolConfig(raw) {
 
   const allowlist = parseAllowlist();
   if (!isAllowedHost(primaryStratumHostRaw, allowlist)) return null;
-  if (!isAllowedHost(primaryRpcHostRaw, allowlist)) return null;
+  if (!isAllowedHost(primaryRpcHostRaw, allowlist) && !isIpLiteral(primaryRpcHostRaw)) return null;
   if (!isValidPort(primary.stratumPort) || !isValidPort(primary.rpcPort)) return null;
 
   const normalized = {
@@ -120,7 +127,15 @@ function normalizePoolConfig(raw) {
 
   const backupStratumHostRaw = backup?.stratumHost || backup?.host;
   const backupRpcHostRaw = backup?.rpcHost || backup?.host || backup?.stratumHost;
-  if (backup && backupStratumHostRaw && backupRpcHostRaw && isAllowedHost(backupStratumHostRaw, allowlist) && isAllowedHost(backupRpcHostRaw, allowlist) && isValidPort(backup.stratumPort) && isValidPort(backup.rpcPort)) {
+  if (
+    backup &&
+    backupStratumHostRaw &&
+    backupRpcHostRaw &&
+    isAllowedHost(backupStratumHostRaw, allowlist) &&
+    (isAllowedHost(backupRpcHostRaw, allowlist) || isIpLiteral(backupRpcHostRaw)) &&
+    isValidPort(backup.stratumPort) &&
+    isValidPort(backup.rpcPort)
+  ) {
     normalized.backup = {
       host: String(backupStratumHostRaw).trim().toLowerCase(),
       stratumHost: String(backupStratumHostRaw).trim().toLowerCase(),
@@ -1014,7 +1029,7 @@ ipcMain.handle('solana-get-token-balance', async (event, { owner, mint }) => {
 });
 
 // === P2Pool RPC IPC Handler (to bypass CORS) ===
-ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'node.minebench.cloud', port = 18081 }) => {
+ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'xmr.minebench.cloud', port = 18081 }) => {
   try {
     return await new Promise((resolve, reject) => {
       const postData = JSON.stringify({
@@ -1126,24 +1141,14 @@ function getRuntimePool() {
   return runtimePoolConfig;
 }
 
-function mapLegacyPrimaryHost(host, role = 'stratum') {
-  const normalized = String(host || '').trim().toLowerCase();
-  if (normalized !== 'xmr.minebench.cloud') return host;
-  return role === 'rpc' ? 'node.minebench.cloud' : 'xmr.minebench.cloud';
-}
-
 function getPoolEnvConfig() {
   const runtime = getRuntimePool();
   const defaults = fallbackConfig.defaults || {};
-  const primaryPoolHost = mapLegacyPrimaryHost(
-    runtime?.primary?.stratumHost || runtime?.primary?.host || process.env.PRIMARY_POOL_HOST || process.env.MB_POOL_HOST || defaults.primaryPoolHost || defaults.primaryHost || 'xmr.minebench.cloud',
-    'stratum'
-  );
+  const primaryPoolHost =
+    runtime?.primary?.stratumHost || runtime?.primary?.host || process.env.PRIMARY_POOL_HOST || process.env.MB_POOL_HOST || defaults.primaryPoolHost || defaults.primaryHost || 'xmr.minebench.cloud';
   const backupPoolHost = runtime?.backup?.stratumHost || runtime?.backup?.host || process.env.BACKUP_POOL_HOST || process.env.MB_POOL_HOST_BACKUP || defaults.backupPoolHost || defaults.backupHost || 'xmr2.minebench.cloud';
-  const primaryRpcHost = mapLegacyPrimaryHost(
-    runtime?.primary?.rpcHost || process.env.PRIMARY_RPC_HOST || process.env.MB_RPC_HOST || defaults.primaryRpcHost || defaults.primaryHost || primaryPoolHost,
-    'rpc'
-  );
+  const primaryRpcHost =
+    runtime?.primary?.rpcHost || process.env.PRIMARY_RPC_HOST || process.env.MB_RPC_HOST || defaults.primaryRpcHost || defaults.primaryHost || primaryPoolHost;
   const backupRpcHost = runtime?.backup?.rpcHost || process.env.BACKUP_RPC_HOST || process.env.MB_RPC_HOST_BACKUP || defaults.backupRpcHost || defaults.backupHost || backupPoolHost;
 
   const useInternalRpc = String(process.env.PRIMARY_RPC_USE_INTERNAL ?? process.env.MB_RPC_USE_INTERNAL ?? 'false').toLowerCase() === 'true';
@@ -1174,6 +1179,10 @@ function getPoolEnvConfig() {
 
 
 ipcMain.handle('get-pool-sync', async (event, poolId) => {
+  if (!getRuntimePool()) {
+    await loadRemotePoolConfig();
+  }
+
   // Mapping IDs to their RPC ports
   // Development: Local Docker containers with mapped RPC ports
   // Production: MineBench Cloud node deployed on Akash (node.minebench.cloud)
@@ -1184,6 +1193,9 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
     primaryRpcPort: rpcPort,
     backupRpcPort: rpcPortBackup
   } = getPoolEnvConfig();
+
+  console.log('[get-pool-sync] Using pool config source:', getRuntimePool() ? 'backend-runtime' : 'local-fallback');
+  console.log('[get-pool-sync] Active RPC hosts:', { primary: rpcHost, backup: rpcHostBackup || null });
 
   if (!rpcPortBackup) {
     console.log('[get-pool-sync] Backup RPC port not set; skipping backup checks');
@@ -1319,19 +1331,6 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
   }
 
   // For production Akash pool: show actual RPC status
-  if (config.host === 'node.minebench.cloud') {
-    return {
-      success: false,
-      id: poolId,
-      isSynced: false,
-      height: 0,
-      targetHeight: 0,
-      progress: 0,
-      connected: false,
-      message: `RPC unavailable - Update Akash deployment to expose port ${config.port}`
-    };
-  }
-
   return {
     success: false,
     id: poolId,

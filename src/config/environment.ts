@@ -80,6 +80,10 @@ const toBool = (value: string | undefined, defaultValue: boolean): boolean => {
 };
 
 const fallbackDefaults = (fallbackConfig as any)?.defaults || {};
+const primaryPoolHostFallback = fallbackDefaults.primaryPoolHost || fallbackDefaults.primaryHost || 'xmr.minebench.cloud';
+const backupPoolHostFallback = fallbackDefaults.backupPoolHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud';
+const primaryRpcHostFallback = fallbackDefaults.primaryRpcHost || fallbackDefaults.primaryHost || primaryPoolHostFallback;
+const backupRpcHostFallback = fallbackDefaults.backupRpcHost || fallbackDefaults.backupHost || backupPoolHostFallback;
 
 // Development Configuration
 const developmentConfig: EnvironmentConfig = {
@@ -97,18 +101,18 @@ const developmentConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.devnet.solana.com',
   bmtTokenMint: (import.meta.env.VITE_BMT_TOKEN_MINT as string) || '67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev',
   poolApiUrl: 'http://localhost:8080/api',
-  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryPoolHost || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || primaryPoolHostFallback,
   poolStratumPort: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
-  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryPoolHost || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
-  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupPoolHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || primaryPoolHostFallback}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || backupPoolHostFallback,
   poolStratumPortBackup: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
-  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupPoolHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
-  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryRpcHost || fallbackDefaults.primaryHost || 'node.minebench.cloud',
+  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || backupPoolHostFallback}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || primaryRpcHostFallback,
   poolRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
-  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryRpcHost || fallbackDefaults.primaryHost || 'node.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
-  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupRpcHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || primaryRpcHostFallback}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || backupRpcHostFallback,
   poolRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
-  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupRpcHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || backupRpcHostFallback}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
   moneroP2pPort: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
   moneroP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
   moneroRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
@@ -140,18 +144,18 @@ const productionConfig: EnvironmentConfig = {
   solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
   bmtTokenMint: (import.meta.env.VITE_BMT_TOKEN_MINT as string) || '67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev',
   poolApiUrl: 'https://minebench.cloud/api/pool',
-  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryPoolHost || fallbackDefaults.primaryHost || 'xmr.minebench.cloud',
+  poolStratumHost: (import.meta.env.VITE_PRIMARY_POOL_HOST as string) || primaryPoolHostFallback,
   poolStratumPort: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
-  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || fallbackDefaults.primaryPoolHost || fallbackDefaults.primaryHost || 'xmr.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
-  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupPoolHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolStratumUrl: `${(import.meta.env.VITE_PRIMARY_POOL_HOST as string) || primaryPoolHostFallback}:${import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolStratumHostBackup: (import.meta.env.VITE_BACKUP_POOL_HOST as string) || backupPoolHostFallback,
   poolStratumPortBackup: Number(import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT) || fallbackDefaults.stratumPort || 3333,
-  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || fallbackDefaults.backupPoolHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
-  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryRpcHost || fallbackDefaults.primaryHost || 'node.minebench.cloud',
+  poolStratumUrlBackup: `${(import.meta.env.VITE_BACKUP_POOL_HOST as string) || backupPoolHostFallback}:${import.meta.env.VITE_BACKUP_STRATUM_PORT || import.meta.env.VITE_PRIMARY_STRATUM_PORT_BACKUP || import.meta.env.VITE_PRIMARY_STRATUM_PORT || fallbackDefaults.stratumPort || 3333}`,
+  poolRpcHost: (import.meta.env.VITE_PRIMARY_RPC_HOST as string) || primaryRpcHostFallback,
   poolRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
-  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || fallbackDefaults.primaryRpcHost || fallbackDefaults.primaryHost || 'node.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
-  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupRpcHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud',
+  poolRpcUrl: `http://${(import.meta.env.VITE_PRIMARY_RPC_HOST as string) || primaryRpcHostFallback}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcHostBackup: (import.meta.env.VITE_BACKUP_RPC_HOST as string) || backupRpcHostFallback,
   poolRpcPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
-  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || fallbackDefaults.backupRpcHost || fallbackDefaults.backupHost || 'xmr2.minebench.cloud'}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
+  poolRpcUrlBackup: `http://${(import.meta.env.VITE_BACKUP_RPC_HOST as string) || backupRpcHostFallback}:${import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT || fallbackDefaults.moneroRpcPort || 18081}/json_rpc`,
   moneroP2pPort: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
   moneroP2pPortBackup: Number(import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT_BACKUP || import.meta.env.VITE_PRIMARY_MONERO_P2P_PORT) || fallbackDefaults.moneroP2pPort || 18080,
   moneroRpcPort: Number(import.meta.env.VITE_PRIMARY_MONERO_RPC_PORT) || fallbackDefaults.moneroRpcPort || 18081,
