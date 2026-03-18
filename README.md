@@ -1,18 +1,35 @@
 # MineBench Client
 
-MineBench Client is the desktop application for benchmarking and mining within
-the MineBench ecosystem. It combines an Electron shell, React UI, local miner
-integration, and wallet-aware flows for syncing rewards and statistics.
+MineBench Client is the desktop execution layer of the MineBench ecosystem. It
+combines the benchmark runtime, miner orchestration, wallet-aware reward
+surfaces, and device-local state needed to turn a user workstation into an
+auditable mining edge node.
 
-## Features
+This repository is where user hardware, miner binaries, wallet UX, and product
+controls meet. As a result, it has to balance operator-grade reliability with a
+consumer-facing user experience.
 
-- desktop app for Windows, macOS, and Linux
-- benchmark and mining workflows
-- local miner process integration
-- wallet-connected reward tracking
-- multi-device statistics synchronization
+## What this module owns
 
-## Stack
+- hardware benchmarking and local capability detection
+- miner process lifecycle management
+- desktop wallet and rewards UX
+- device-local telemetry and settings persistence
+- multi-platform packaging for Windows, macOS, and Linux
+
+## Architectural role
+
+The client is the trust boundary closest to the user machine. It is responsible
+for gathering device-level signals, launching local mining workflows, and
+presenting benchmark and reward state without embedding backend-only authority.
+
+That split matters:
+
+- the desktop runtime may observe and submit state
+- it must not own backend accounting or treasury logic
+- any privileged infrastructure access has to remain server-side
+
+## Technology stack
 
 - Electron
 - React
@@ -27,7 +44,7 @@ Install dependencies:
 npm install
 ```
 
-Run the local development flow:
+Run the integrated desktop development flow:
 
 ```bash
 npm run dev:all
@@ -41,23 +58,30 @@ npm run dist:mac
 npm run dist:linux
 ```
 
-## Configuration
+## Configuration model
 
-Local runtime values should be stored in local environment files only.
-Do not commit signing material, certificates, or private endpoints.
+All local runtime values should stay in local environment files or machine-local
+configuration only. Signing material, private endpoints, and operational
+credentials must never be committed.
 
-## Notes
+## Documentation
 
-Mining software can trigger antivirus heuristics. Review binaries carefully and
-publish reproducible build instructions for releases.
+All repository documentation is grouped under [`docs/`](docs/README.md).
 
-## Security
+Recommended entry points:
+
+- [`docs/README.md`](docs/README.md)
+- [`docs/BUILD.md`](docs/BUILD.md)
+- [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md)
+- [`docs/TECHNICAL_REQUIREMENTS.md`](docs/TECHNICAL_REQUIREMENTS.md)
+- [`docs/SECURITY.md`](docs/SECURITY.md)
+
+## Security posture
 
 - never commit `.env` files
-- never commit code-signing certificates
+- never commit code-signing certificates or release keys
 - never commit wallet secrets or internal API credentials
-
-See `SECURITY.md` for vulnerability reporting.
+- keep reproducible build and release notes separate from privileged material
 
 ## License
 
