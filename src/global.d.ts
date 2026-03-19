@@ -9,6 +9,19 @@ interface DisplayStatus {
   isRunningWithSudo?: boolean;
 }
 
+interface RuntimePoolEndpoint {
+  stratumHost: string;
+  rpcHost: string;
+  stratumPort: number;
+  rpcPort: number;
+}
+
+interface RuntimePoolConfig {
+  source: 'backend-runtime' | 'local-fallback';
+  primary: RuntimePoolEndpoint;
+  backup: RuntimePoolEndpoint | null;
+}
+
 // Add Three.js JSX types
 import { ThreeElements } from '@react-three/fiber'
 
@@ -25,6 +38,7 @@ declare global {
         invoke: (channel: string, ...args: any[]) => Promise<any>;
         on: (channel: string, func: (...args: any[]) => void) => () => void;
       };
+      getRuntimePoolConfig?: () => Promise<RuntimePoolConfig>;
     };
   }
   

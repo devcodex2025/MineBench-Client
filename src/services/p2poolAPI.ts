@@ -55,6 +55,7 @@ class P2PoolService {
   private rpcPort: number;
   private staleTime = 5000; // 5 seconds cache
   private apiBaseUrl: string;
+  private lastRuntimeSyncAt = 0;
 
   constructor(host?: string, port?: number) {
     const env = getEnvironmentConfig();
@@ -63,8 +64,28 @@ class P2PoolService {
     this.apiBaseUrl = env.apiBaseUrl;
   }
 
+  private async syncRuntimeConfig() {
+    const now = Date.now();
+    if (now - this.lastRuntimeSyncAt < this.staleTime) return;
+    this.lastRuntimeSyncAt = now;
+
+    try {
+      if (!window.electron?.ipcRenderer) return;
+      const runtimeConfig = await window.electron.ipcRenderer.invoke('get-runtime-pool-config');
+      const primary = runtimeConfig?.primary;
+      if (primary?.rpcHost && primary?.rpcPort) {
+        this.rpcHost = primary.rpcHost;
+        this.rpcPort = Number(primary.rpcPort);
+      }
+    } catch (err) {
+      console.warn('[P2PoolAPI] Failed to sync runtime pool config:', err);
+    }
+  }
+
   private async rpcCall(method: string, params: any = {}) {
     try {
+      await this.syncRuntimeConfig();
+
       // Try to use Electron IPC first (bypasses CORS)
       // @ts-ignore
       if (window.electron?.ipcRenderer) {
@@ -108,6 +129,8 @@ class P2PoolService {
    */
   async getPoolStats(): Promise<P2PoolStats> {
     try {
+      await this.syncRuntimeConfig();
+
       let info = { difficulty: 0 };
       
       try {

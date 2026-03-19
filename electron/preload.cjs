@@ -48,7 +48,8 @@ contextBridge.exposeInMainWorld("electron", {
         'solana-connect-wallet',
         'solana-disconnect-wallet',
         'solana-get-token-balance',
-        'p2pool-rpc-call'
+        'p2pool-rpc-call',
+        'get-runtime-pool-config'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);

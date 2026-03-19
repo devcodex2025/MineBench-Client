@@ -68,18 +68,27 @@ function stableStringify(value) {
 }
 
 function buildPublicConfigUrl() {
-  const explicit = process.env.PUBLIC_CONFIG_URL || process.env.MB_PUBLIC_CONFIG_URL;
-  if (explicit) return explicit;
-  const backendUrl = process.env.BACKEND_URL || process.env.MB_BACKEND_URL || process.env.VITE_BACKEND_URL;
-  if (backendUrl) return `${backendUrl.replace(/\/+$/, '')}/public/config`;
+  // In packaged apps, prefer the canonical backend URL and avoid accidental
+  // machine-level env overrides from old local setups.
+  if (!app.isPackaged) {
+    const explicit = process.env.PUBLIC_CONFIG_URL || process.env.MB_PUBLIC_CONFIG_URL;
+    if (explicit) return explicit;
+    const backendUrl = process.env.BACKEND_URL || process.env.MB_BACKEND_URL || process.env.VITE_BACKEND_URL;
+    if (backendUrl) return `${backendUrl.replace(/\/+$/, '')}/public/config`;
+  }
   return fallbackConfig.publicConfigUrl || 'https://backend.minebench.cloud/public/config';
 }
 
 function parseAllowlist() {
   const raw = process.env.POOL_CONFIG_ALLOWLIST || process.env.MB_POOL_CONFIG_ALLOWLIST;
-  if (raw) return new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
-  const list = Array.isArray(fallbackConfig.poolConfigAllowlist) ? fallbackConfig.poolConfigAllowlist : [];
-  return new Set(list.map((s) => String(s).trim()).filter(Boolean));
+  const fallbackList = Array.isArray(fallbackConfig.poolConfigAllowlist) ? fallbackConfig.poolConfigAllowlist : [];
+  const envList = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const merged = new Set(
+    [...fallbackList, ...envList]
+      .map((s) => String(s).trim().toLowerCase())
+      .filter(Boolean)
+  );
+  return merged;
 }
 
 function isValidPort(value) {
@@ -104,16 +113,32 @@ function normalizePoolConfig(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const primary = raw.pool && raw.pool.primary;
   const backup = raw.pool && raw.pool.backup;
-  if (!primary) return null;
+  if (!primary) {
+    log('[public-config] Rejecting payload: missing pool.primary');
+    return null;
+  }
 
   const primaryStratumHostRaw = primary.stratumHost || primary.host;
   const primaryRpcHostRaw = primary.rpcHost || primary.host || primary.stratumHost;
-  if (!primaryStratumHostRaw || !primaryRpcHostRaw) return null;
+  if (!primaryStratumHostRaw || !primaryRpcHostRaw) {
+    log('[public-config] Rejecting payload: missing primary stratum/rpc host');
+    return null;
+  }
 
   const allowlist = parseAllowlist();
-  if (!isAllowedHost(primaryStratumHostRaw, allowlist)) return null;
-  if (!isAllowedHost(primaryRpcHostRaw, allowlist) && !isIpLiteral(primaryRpcHostRaw)) return null;
-  if (!isValidPort(primary.stratumPort) || !isValidPort(primary.rpcPort)) return null;
+  log(`[public-config] Effective allowlist: ${Array.from(allowlist).join(', ')}`);
+  if (!isAllowedHost(primaryStratumHostRaw, allowlist)) {
+    log(`[public-config] Rejecting payload: primary stratum host not allowed (${primaryStratumHostRaw})`);
+    return null;
+  }
+  if (!isAllowedHost(primaryRpcHostRaw, allowlist) && !isIpLiteral(primaryRpcHostRaw)) {
+    log(`[public-config] Rejecting payload: primary rpc host not allowed (${primaryRpcHostRaw})`);
+    return null;
+  }
+  if (!isValidPort(primary.stratumPort) || !isValidPort(primary.rpcPort)) {
+    log(`[public-config] Rejecting payload: invalid primary ports (${primary.stratumPort}, ${primary.rpcPort})`);
+    return null;
+  }
 
   const normalized = {
     primary: {
@@ -144,6 +169,9 @@ function normalizePoolConfig(raw) {
       rpcPort: Number(backup.rpcPort)
     };
   }
+  else if (backup) {
+    log('[public-config] Backup payload ignored due to validation failure');
+  }
 
   return normalized;
 }
@@ -151,6 +179,7 @@ function normalizePoolConfig(raw) {
 async function loadRemotePoolConfig() {
   try {
     const url = buildPublicConfigUrl();
+    log(`[public-config] Fetching runtime pool config from ${url}`);
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`Status ${res.status}`);
     const json = await res.json();
@@ -174,8 +203,11 @@ async function loadRemotePoolConfig() {
     runtimePoolConfig = normalized;
     runtimePoolConfigLoadedAt = Date.now();
     console.log('[public-config] Loaded remote pool config from', url, keyId ? `(keyId=${keyId})` : '');
+    log(`[public-config] Loaded remote pool config from ${url}`);
+    log(`[public-config] Active primary RPC host: ${normalized.primary.rpcHost}:${normalized.primary.rpcPort}`);
   } catch (err) {
     console.warn('[public-config] Failed to load remote pool config:', err.message);
+    log(`[public-config] Failed to load remote pool config: ${err.message}`);
   }
 }
 
@@ -1029,8 +1061,22 @@ ipcMain.handle('solana-get-token-balance', async (event, { owner, mint }) => {
 });
 
 // === P2Pool RPC IPC Handler (to bypass CORS) ===
-ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'xmr.minebench.cloud', port = 18081 }) => {
+ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host, port } = {}) => {
   try {
+    if (!getRuntimePool()) {
+      await loadRemotePoolConfig();
+    }
+
+    const {
+      primaryRpcHost,
+      primaryRpcPort
+    } = getPoolEnvConfig();
+
+    const effectiveHost = primaryRpcHost || host || 'xmr.minebench.cloud';
+    const effectivePort = Number(primaryRpcPort || port || 18081);
+    console.log('[p2pool-rpc-call] Using RPC endpoint:', { host: effectiveHost, port: effectivePort, source: getRuntimePool() ? 'backend-runtime' : 'local-fallback' });
+    log(`[p2pool-rpc-call] host=${effectiveHost} port=${effectivePort} source=${getRuntimePool() ? 'backend-runtime' : 'local-fallback'} method=${method}`);
+
     return await new Promise((resolve, reject) => {
       const postData = JSON.stringify({
         jsonrpc: '2.0',
@@ -1040,8 +1086,8 @@ ipcMain.handle('p2pool-rpc-call', async (event, { method, params = {}, host = 'x
       });
 
       const options = {
-        hostname: host,
-        port: port,
+        hostname: effectiveHost,
+        port: effectivePort,
         path: '/json_rpc',
         method: 'POST',
         headers: {
@@ -1177,6 +1223,39 @@ function getPoolEnvConfig() {
   };
 }
 
+ipcMain.handle('get-runtime-pool-config', async () => {
+  if (!getRuntimePool()) {
+    await loadRemotePoolConfig();
+  }
+
+  const {
+    primaryPoolHost,
+    backupPoolHost,
+    primaryRpcHost,
+    backupRpcHost,
+    primaryRpcPort,
+    backupRpcPort,
+    primaryStratumPort,
+    backupStratumPort
+  } = getPoolEnvConfig();
+
+  return {
+    source: getRuntimePool() ? 'backend-runtime' : 'local-fallback',
+    primary: {
+      stratumHost: primaryPoolHost,
+      rpcHost: primaryRpcHost,
+      stratumPort: primaryStratumPort,
+      rpcPort: primaryRpcPort
+    },
+    backup: backupPoolHost && backupRpcPort ? {
+      stratumHost: backupPoolHost,
+      rpcHost: backupRpcHost,
+      stratumPort: backupStratumPort,
+      rpcPort: backupRpcPort
+    } : null
+  };
+});
+
 
 ipcMain.handle('get-pool-sync', async (event, poolId) => {
   if (!getRuntimePool()) {
@@ -1196,6 +1275,7 @@ ipcMain.handle('get-pool-sync', async (event, poolId) => {
 
   console.log('[get-pool-sync] Using pool config source:', getRuntimePool() ? 'backend-runtime' : 'local-fallback');
   console.log('[get-pool-sync] Active RPC hosts:', { primary: rpcHost, backup: rpcHostBackup || null });
+  log(`[get-pool-sync] source=${getRuntimePool() ? 'backend-runtime' : 'local-fallback'} primary=${rpcHost}:${rpcPort} backup=${rpcHostBackup || 'none'}:${rpcPortBackup || 0}`);
 
   if (!rpcPortBackup) {
     console.log('[get-pool-sync] Backup RPC port not set; skipping backup checks');
@@ -2101,6 +2181,8 @@ function log(message) {
 
 function createWindow() {
   try {
+    log(`[startup] MineBench Client ${app.getVersion()} launching`);
+    log(`[startup] userData path: ${app.getPath('userData')}`);
     const isWindows = process.platform === 'win32';
     mainWindow = new BrowserWindow({
       width: 1200,

@@ -1,7 +1,7 @@
 {
   "name": "MineBench-Client",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.7.0",
   "productName": "MineBench Client",
   "description": "Mining benchmark desktop client with native Wayland support.",
   "author": "MineBench Team",
@@ -80,6 +80,7 @@
       "electron/**/*",
       "Miner/**/*",
       "build/**/*",
+      "config/**/*",
       "package.json"
     ],
     "win": {
