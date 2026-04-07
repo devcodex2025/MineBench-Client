@@ -33,6 +33,8 @@ certs/
 *.ps1
 *.yml
 *.yaml
+!.github/workflows/*.yml
+!.github/workflows/*.yaml
 *.sql
 .env.*
 
