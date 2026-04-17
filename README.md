@@ -34,9 +34,19 @@ Join our testers community you can inside [Discord channel - MineBench](https://
 ## Benchmark mode
 [![MineBench mining mode](/public/benchmark-mode.png)](https://minebench.cloud/downloads)
 
+Our benchmark mode is the main feature of application. This application is built with goal to monetize benchmarks.
+Each benchmark matter. Instead of burning compute power each user who run the benchmark supported Monero blockchain network
+our mining pool receiving rewards and we will distribute 20% of rewards to each user who ran the benchmark.
+
+In current period of time we looking for ways to implement automatica rewards feature. This feature of automatic rewards
+not working yet. But if you run the benchmark you support our application and help us earn money to build this functionality.
+
 ## Cards with mining pool stats
 
 [![MineBench mining mode](/public/minebench-preview.png)](https://minebench.cloud/downloads)
+
+In real time each our miner can look at current total hashrate of our mining pool. You can see how many miners online. That current hashrate of pool.
+Also includes information about finded blocks.
 
 ## $BMT utility token
 Token listed on pumpfun - [buy $BMT token to support app development](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
