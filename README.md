@@ -171,3 +171,7 @@ This project is fully open-source.
 ## License
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+
+[![Download](https://img.shields.io/badge/⬇️_Download-MineBench-blue?style=for-the-badge)](https://minebench.cloud/downloads)
+
+[![Support](https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge)](https://pump.fun/)
