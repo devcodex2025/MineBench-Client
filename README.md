@@ -1,4 +1,5 @@
 [![MineBench Preview](./public/minebench-preview-main.png)](https://minebench.cloud/downloads)
+> The first mining benchmark that lets you **earn crypto while testing your hardware**.
 
 # MineBench Client
 > Open-source mining benchmark client built with Electron. Measure CPU & GPU performance, optimize hashrate, and earn crypto rewards on Solana.
