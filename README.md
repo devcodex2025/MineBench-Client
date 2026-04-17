@@ -134,30 +134,6 @@ npm run dist:mac
 npm run dist:linux
 ```
 
-## Configuration model
-
-All local runtime values should stay in local environment files or machine-local
-configuration only. Signing material, private endpoints, and operational
-credentials must never be committed.
-
-## Documentation
-
-All repository documentation is grouped under [`docs/`](docs/README.md).
-
-Recommended entry points:
-
-- [`docs/README.md`](docs/README.md)
-- [`docs/BUILD.md`](docs/BUILD.md)
-- [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md)
-- [`docs/TECHNICAL_REQUIREMENTS.md`](docs/TECHNICAL_REQUIREMENTS.md)
-- [`docs/SECURITY.md`](docs/SECURITY.md)
-
-## Security posture
-
-- never commit `.env` files
-- never commit code-signing certificates or release keys
-- never commit wallet secrets or internal API credentials
-- keep reproducible build and release notes separate from privileged material
 
 # Security & Transparency
 
