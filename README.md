@@ -94,7 +94,7 @@ That split matters:
 - Optimize mining efficiency
 - Earn crypto rewards via benchmarking
 
-## Development
+## Development & contribution
 
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
 combines the benchmark runtime, miner orchestration, wallet-aware reward
