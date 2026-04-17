@@ -1,5 +1,9 @@
 # MineBench Client
-
+![Solana](https://img.shields.io/badge/Solana-3A3A3A?style=for-the-badge&logo=solana&logoColor=00FFA3)
+![Monero](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+![Electron JS](https://img.shields.io/badge/Electron_JS-47848F?style=for-the-badge&logo=electron&logoColor=white)
 [![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
   
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
