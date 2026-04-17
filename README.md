@@ -153,5 +153,4 @@ All code can be audited to ensure безопасность and trust.
 
 ## License
 
-MIT 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
