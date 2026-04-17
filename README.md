@@ -156,7 +156,6 @@ This project is fully open-source.
 
 ⚠️ Note: Mining software may be flagged as false-positive by antivirus tools.
 
-- Open source
 - No hidden processes
 - No background mining without user consent
 
