@@ -1,4 +1,6 @@
 # MineBench Client
+> Open-source mining benchmark client built with Electron. Measure CPU & GPU performance, optimize hashrate, and earn crypto rewards on Solana.
+
 ![Solana](https://img.shields.io/badge/Solana-3A3A3A?style=for-the-badge&logo=solana&logoColor=00FFA3)
 ![Monero](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
