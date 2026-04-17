@@ -15,6 +15,13 @@ MineBench is a **crypto mining benchmark tool** designed to test CPU and GPU per
 
 This **mining benchmark client** allows users to measure hashrate, optimize mining efficiency, and earn crypto rewards.
 
+Unlike traditional benchmarks, MineBench provides:
+
+- Real mining-based performance metrics
+- Blockchain-verified results
+- Crypto rewards for benchmarking
+
+
 ## Features
 
 - ⚡ CPU & GPU benchmarking
