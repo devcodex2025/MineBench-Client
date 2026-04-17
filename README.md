@@ -3,7 +3,9 @@
 ![Monero](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Electron JS](https://img.shields.io/badge/Electron_JS-47848F?style=for-the-badge&logo=electron&logoColor=white)  
+![Electron JS](https://img.shields.io/badge/Electron_JS-47848F?style=for-the-badge&logo=electron&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge)  
 [![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
   
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
