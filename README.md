@@ -22,6 +22,14 @@ consumer-facing user experience.
 ## Mining mode
 [![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
 
+In mining mode you can connect to MineBench own Monero mining pool and increase total hashrate of our pool.
+Rewards will be converted to [$BMT token](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
+**20% of rewards will be distributed to support our app**
+**80% of rewards will be distributed to active community members who run mining mode minimum 15 minutes.**
+Rewards will be distributed in equivalent parts to each active tester in [$BMT token](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev).
+
+Join our testers community you can inside [Discord channel - MineBench](https://discord.gg/vsDyYh4rma)
+
 ## Benchmark mode
 [![MineBench mining mode](/public/benchmark-mode.png)](https://minebench.cloud/downloads)
 
