@@ -1,4 +1,4 @@
-[![MineBench logo](public/minebench-logo-yellow.png)](https://minebench.cloud/)
+[![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
 # MineBench Client
 
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
@@ -20,6 +20,9 @@ consumer-facing user experience.
 
 ## Mining mode
 [![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
+
+## Benchmark mode
+[![MineBench mining mode](/public/benchmark-mode.png)](https://minebench.cloud/downloads)
 
 ## Cards with mining pool stats
 
