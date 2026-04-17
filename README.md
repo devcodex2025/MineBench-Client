@@ -1,3 +1,5 @@
+[![MineBench Preview](./public/minebench-preview-main.png)](https://minebench.cloud/downloads)
+
 # MineBench Client
 > Open-source mining benchmark client built with Electron. Measure CPU & GPU performance, optimize hashrate, and earn crypto rewards on Solana.
 
@@ -25,7 +27,6 @@ This **mining benchmark client** allows users to measure hashrate, optimize mini
 - 🖥️ Cross-platform (Windows & Linux)
 - 🔐 Secure and lightweight Electron app
 
-[![MineBench Preview](./public/minebench-preview-main.png)](https://minebench.cloud/downloads)
 
 Unlike traditional benchmarks, MineBench provides:
 
