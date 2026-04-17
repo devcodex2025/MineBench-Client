@@ -1,4 +1,4 @@
-[![MineBench Preview](./public/minebench-preview-main.png)](https://minebench.cloud/downloads)
+[![MineBench Preview](./public/minebench-preview-main-800px.png)](https://minebench.cloud/downloads)
 > The first mining benchmark that lets you **earn crypto while testing your hardware**.
 
 # MineBench Client
@@ -38,7 +38,7 @@ Unlike traditional benchmarks:
 - 💰 Earn crypto rewards for benchmarking
 
 ## Mining mode
-[![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
+[![MineBench mining mode](/public/mining-mode-800px.png)](https://minebench.cloud/downloads)
 
 In mining mode you can connect to MineBench own Monero mining pool and increase total hashrate of our pool.
 Rewards will be converted to [$BMT token](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
@@ -50,7 +50,7 @@ Rewards will be distributed in equivalent parts to each active tester in [$BMT t
 Join our testers community you can inside [Discord channel - MineBench](https://discord.gg/vsDyYh4rma)
 
 ## Benchmark mode
-[![MineBench mining mode](/public/benchmark-mode.png)](https://minebench.cloud/downloads)
+[![MineBench mining mode](/public/benchmark-mode-800px.png)](https://minebench.cloud/downloads)
 
 Our benchmark mode is the main feature of application. This application is built with goal to monetize benchmarks.
 Each benchmark matter. Instead of burning compute power each user who run the benchmark supported Monero blockchain network
@@ -61,7 +61,7 @@ not working yet. But if you run the benchmark you support our application and he
 
 ## Cards with mining pool stats
 
-[![MineBench mining mode](/public/minebench-preview.png)](https://minebench.cloud/downloads)
+[![MineBench mining mode](/public/minebench-preview-800px.png)](https://minebench.cloud/downloads)
 
 In real time each our miner can look at current total hashrate of our mining pool. You can see how many miners online. That current hashrate of pool.
 Also includes information about finded blocks.
