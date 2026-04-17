@@ -29,11 +29,13 @@ This **mining benchmark client** allows users to measure hashrate, optimize mini
 - 🔐 Secure and lightweight Electron app
 
 
-Unlike traditional benchmarks, MineBench provides:
+## Why MineBench?
 
-- Real mining-based performance metrics
-- Blockchain-verified results
-- Crypto rewards for benchmarking
+Unlike traditional benchmarks:
+
+- 🧠 Real mining workloads (not synthetic tests)
+- 🔗 Blockchain-verified results
+- 💰 Earn crypto rewards for benchmarking
 
 ## Mining mode
 [![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
