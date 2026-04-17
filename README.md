@@ -1,6 +1,7 @@
-[![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
 # MineBench Client
 
+[![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
+  
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
 combines the benchmark runtime, miner orchestration, wallet-aware reward
 surfaces, and device-local state needed to turn a user workstation into an
