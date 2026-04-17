@@ -11,14 +11,9 @@
 [![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
 >MineBench is a crypto mining benchmark tool that allows users to test hardware performance, compare results, and earn blockchain-based rewards.
 
-MineBench Client is the desktop execution layer of the MineBench ecosystem. It
-combines the benchmark runtime, miner orchestration, wallet-aware reward
-surfaces, and device-local state needed to turn a user workstation into an
-auditable mining edge node.
+MineBench is a **crypto mining benchmark tool** designed to test CPU and GPU performance.
 
-This repository is where user hardware, miner binaries, wallet UX, and product
-controls meet. As a result, it has to balance operator-grade reliability with a
-consumer-facing user experience.
+This **mining benchmark client** allows users to measure hashrate, optimize mining efficiency, and earn crypto rewards.
 
 ## Features
 
@@ -100,6 +95,15 @@ That split matters:
 - Earn crypto rewards via benchmarking
 
 ## Development
+
+MineBench Client is the desktop execution layer of the MineBench ecosystem. It
+combines the benchmark runtime, miner orchestration, wallet-aware reward
+surfaces, and device-local state needed to turn a user workstation into an
+auditable mining edge node.
+
+This repository is where user hardware, miner binaries, wallet UX, and product
+controls meet. As a result, it has to balance operator-grade reliability with a
+consumer-facing user experience.
 
 Install dependencies:
 
