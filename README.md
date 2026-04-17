@@ -150,10 +150,15 @@ Recommended entry points:
 - never commit wallet secrets or internal API credentials
 - keep reproducible build and release notes separate from privileged material
 
-## Security
+# Security & Transparency
 
-This project is open-source and transparent.
-All code can be audited to ensure безопасность and trust.
+This project is fully open-source.
+
+⚠️ Note: Mining software may be flagged as false-positive by antivirus tools.
+
+- Open source
+- No hidden processes
+- No background mining without user consent
 
 ## License
 
