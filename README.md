@@ -20,6 +20,16 @@ This repository is where user hardware, miner binaries, wallet UX, and product
 controls meet. As a result, it has to balance operator-grade reliability with a
 consumer-facing user experience.
 
+## Features
+
+- ⚡ CPU & GPU benchmarking
+- ⛏️ Integrated crypto mining support
+- 🧠 Real-time hashrate & performance metrics
+- 💰 Earn rewards on Solana blockchain
+- 🖥️ Cross-platform (Windows & Linux)
+- 🔐 Secure and lightweight Electron app
+
+
 ## What this module owns
 
 - hardware benchmarking and local capability detection
