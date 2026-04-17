@@ -137,14 +137,14 @@ npm run dist:linux
 ```
 
 
-# Security & Transparency
+## 🔐 Security & Transparency
 
-This project is fully open-source.
+- ✅ Fully open-source
+- ✅ No hidden mining
+- ✅ User-controlled resource usage
+- ⚠️ Antivirus may flag mining software as false-positive
 
-⚠️ Note: Mining software may be flagged as false-positive by antivirus tools.
-
-- No hidden processes
-- No background mining without user consent
+All operations are transparent and verifiable.
 
 ## License
 
