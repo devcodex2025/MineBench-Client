@@ -1,4 +1,4 @@
-[![MineBench logo](minebench-logo-yellow.png)](https://minebench.cloud/)
+[![MineBench logo](public/minebench-logo-yellow.png)](https://minebench.cloud/)
 # MineBench Client
 
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
