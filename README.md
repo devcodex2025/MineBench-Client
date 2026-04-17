@@ -51,6 +51,9 @@ Also includes information about finded blocks.
 ## $BMT utility token
 Token listed on pumpfun - [buy $BMT token to support app development](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
 
+$BMT token is a utility token. We will convert earned from mining Monero tokens to our token. And will distribute 80% of rewards in $BMT token to each user who participated in seeking the block.
+Our token is backed by Monero mining.
+
 ## Architectural role
 
 The client is the trust boundary closest to the user machine. It is responsible
