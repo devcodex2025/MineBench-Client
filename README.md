@@ -177,4 +177,4 @@ This project is fully open-source.
 [![Download](https://img.shields.io/badge/⬇️_Download-MineBench-blue?style=for-the-badge)](https://minebench.cloud/downloads)
 
 ## Support 
-[![Support](https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge)]([https://pump.fun/](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev))
+[![Support](https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge)](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
