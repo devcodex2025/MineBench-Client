@@ -31,6 +31,8 @@ Unlike traditional benchmarks, MineBench provides:
 - 🖥️ Cross-platform (Windows & Linux)
 - 🔐 Secure and lightweight Electron app
 
+![MineBench Preview](./public/minebench-preview-main.png)
+
 
 ## What this module owns
 
