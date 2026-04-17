@@ -9,7 +9,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 ![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge)  
 [![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
-  
+>MineBench is a crypto mining benchmark tool that allows users to test hardware performance, compare results, and earn blockchain-based rewards.  
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
 combines the benchmark runtime, miner orchestration, wallet-aware reward
 surfaces, and device-local state needed to turn a user workstation into an
