@@ -92,6 +92,13 @@ That split matters:
 - TypeScript
 - Vite
 
+## Use Cases
+
+- Benchmark your mining hardware
+- Compare GPU and CPU performance
+- Optimize mining efficiency
+- Earn crypto rewards via benchmarking
+
 ## Development
 
 Install dependencies:
