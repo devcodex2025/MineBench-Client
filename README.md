@@ -1,3 +1,4 @@
+[![MineBench logo](minebench-logo-yellow.png)](https://minebench.cloud/)
 # MineBench Client
 
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
@@ -16,6 +17,16 @@ consumer-facing user experience.
 - desktop wallet and rewards UX
 - device-local telemetry and settings persistence
 - multi-platform packaging for Windows, macOS, and Linux
+
+## Mining mode
+[![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
+
+## Cards with mining pool stats
+
+[![MineBench mining mode](/public/minebench-preview.png)](https://minebench.cloud/downloads)
+
+## $BMT utility token
+Token listed on pumpfun - [buy $BMT token to support app development](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
 
 ## Architectural role
 
