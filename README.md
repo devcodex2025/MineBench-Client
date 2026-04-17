@@ -33,15 +33,6 @@ Unlike traditional benchmarks, MineBench provides:
 
 ![MineBench Preview](./public/minebench-preview-main.png)
 
-
-## What this module owns
-
-- hardware benchmarking and local capability detection
-- miner process lifecycle management
-- desktop wallet and rewards UX
-- device-local telemetry and settings persistence
-- multi-platform packaging for Windows, macOS, and Linux
-
 ## Mining mode
 [![MineBench mining mode](/public/mining-mode.png)](https://minebench.cloud/downloads)
 
@@ -113,6 +104,15 @@ auditable mining edge node.
 This repository is where user hardware, miner binaries, wallet UX, and product
 controls meet. As a result, it has to balance operator-grade reliability with a
 consumer-facing user experience.
+
+
+## What this module owns
+
+- hardware benchmarking and local capability detection
+- miner process lifecycle management
+- desktop wallet and rewards UX
+- device-local telemetry and settings persistence
+- multi-platform packaging for Windows, macOS, and Linux
 
 Install dependencies:
 
