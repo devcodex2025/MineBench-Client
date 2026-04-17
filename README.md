@@ -174,11 +174,4 @@ This project is fully open-source.
 
 
 ## Download and support
-<p align="center">
-  <a href="https://minebench.cloud/downloads">
-    <img src="https://img.shields.io/badge/⬇️_Download-MineBench-blue?style=for-the-badge" />
-  </a>
-  <a href="https://pump.fun/">
-    <img src="https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge" />
-  </a>
-</p>
+[![Download](https://img.shields.io/badge/⬇️_Download-MineBench-blue?style=for-the-badge)](https://minebench.cloud/downloads)&nbsp;&nbsp;&nbsp;[![Support](https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge)](https://pump.fun/)
