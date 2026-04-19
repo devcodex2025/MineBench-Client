@@ -1,6 +1,6 @@
 # Security Policy
 
-Report vulnerabilities privately to `security@minebench.dev`.
+Report vulnerabilities privately.
 
 Never commit:
 
