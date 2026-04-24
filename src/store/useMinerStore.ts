@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getEnvironmentConfig } from '../config/environment';
+import { estimateBmtReward } from '../lib/rewards';
 
 export type AppMode = 'benchmark' | 'mining';
 export type DeviceType = 'cpu' | 'gpu';
@@ -32,6 +33,7 @@ interface MiningState {
     currentHashrate: number;
     currentTemp: number | null;
     currentPower: number | null;
+    lastRewardUpdatedAt: number | null;
 
     // Rewards ($BMT)
     sessionRewards: number;
@@ -148,6 +150,7 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     currentHashrate: 0,
     currentTemp: null,
     currentPower: null,
+    lastRewardUpdatedAt: null,
 
     sessionRewards: 0,
     totalRewards: 0,
@@ -185,7 +188,12 @@ export const useMinerStore = create<MiningState>((set, get) => ({
     setWallet: (wallet) => set({ wallet }),
     setWorkerName: (workerName) => set({ workerName }),
     setWalletVerified: (verified, solanaKey) => set({ walletVerified: verified, solanaPublicKey: solanaKey }),
-    setStatus: (status) => set({ status, isRunning: status === 'running', isPaused: status === 'paused' }),
+    setStatus: (status) => set((state) => ({
+        status,
+        isRunning: status === 'running',
+        isPaused: status === 'paused',
+        lastRewardUpdatedAt: status === 'running' ? state.lastRewardUpdatedAt : null
+    })),
     setThreads: (threads) => set({ threads }),
     setCpuInfo: (cpuName, cpuCores) => set((state) => {
         const safeCores = Math.max(1, cpuCores || 1);
@@ -238,7 +246,16 @@ export const useMinerStore = create<MiningState>((set, get) => ({
 
     updateStats: (hashrate: number, temp: number | null | undefined, power?: number) => set((state) => {
         const safeHashrate = hashrate || 0;
-        const rewardTick = (safeHashrate / 1000000) * 0.1 / 3600; // 0.1 BMT per MH/hr
+        const now = Date.now();
+        const elapsedSeconds = state.lastRewardUpdatedAt
+            ? Math.max((now - state.lastRewardUpdatedAt) / 1000, 0)
+            : 0;
+        const rewardTick = estimateBmtReward({
+            hashrate: safeHashrate,
+            seconds: elapsedSeconds,
+            networkHashrate: state.poolNetworkHashrate,
+            rateXmrBmt: state.rateXmrBmt
+        });
         const newTotal = (state.totalRewards || 0) + rewardTick;
         const newSession = (state.sessionRewards || 0) + rewardTick;
 
@@ -246,6 +263,7 @@ export const useMinerStore = create<MiningState>((set, get) => ({
             currentHashrate: safeHashrate,
             currentTemp: temp,
             currentPower: power,
+            lastRewardUpdatedAt: now,
             sessionRewards: isNaN(newSession) ? state.sessionRewards : newSession,
             totalRewards: isNaN(newTotal) ? state.totalRewards : newTotal,
             history: [...state.history.slice(-29), {
@@ -261,6 +279,8 @@ export const useMinerStore = create<MiningState>((set, get) => ({
         history: [],
         currentHashrate: 0,
         currentTemp: null,
+        currentPower: null,
+        lastRewardUpdatedAt: null,
         sessionRewards: 0,
         status: 'idle'
     }),

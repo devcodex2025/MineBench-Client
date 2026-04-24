@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const path = require("path");
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const si = require('systeminformation');
@@ -17,9 +17,14 @@ if (!app.isPackaged) {
   try {
     const dotenv = require('dotenv');
     const dotenvExpand = require('dotenv-expand');
-    const envPath = path.join(__dirname, '..', '.env.development');
-    if (fs.existsSync(envPath)) {
-      dotenvExpand.expand(dotenv.config({ path: envPath }));
+    const envPaths = [
+      path.join(__dirname, '..', '.env.development'),
+      path.join(__dirname, '..', '..', 'MineBench-UI', '.env.local')
+    ];
+    for (const envPath of envPaths) {
+      if (fs.existsSync(envPath)) {
+        dotenvExpand.expand(dotenv.config({ path: envPath }));
+      }
     }
   } catch (e) {
     console.warn('[env] Failed to load .env.development:', e.message);
@@ -619,7 +624,24 @@ const CPU_POWER_CACHE_MS = 2000; // Cache for 2 seconds
 let cachedCpuPower = null;
 let lastCpuPowerTime = 0;
 
-ipcMain.handle('get-cpu-temp', async () => {
+async function readWindowsThermalZoneTemp() {
+  if (process.platform !== 'win32') return null;
+
+  return new Promise((resolve) => {
+    const script = "$ErrorActionPreference='SilentlyContinue'; $items = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature; if ($items) { $avg = ($items | Measure-Object -Property CurrentTemperature -Average).Average; if ($avg) { (($avg - 2732) / 10) } }";
+    execFile('powershell.exe', ['-NoProfile', '-Command', script], { timeout: 1500 }, (err, stdout) => {
+      if (err || !stdout) {
+        resolve(null);
+        return;
+      }
+
+      const nextTemp = Number(String(stdout).trim().replace(',', '.'));
+      resolve(Number.isFinite(nextTemp) && nextTemp > 0 ? nextTemp : null);
+    });
+  });
+}
+
+async function readCpuTemp() {
   try {
     const now = Date.now();
 
@@ -629,22 +651,25 @@ ipcMain.handle('get-cpu-temp', async () => {
     }
 
     const tempData = await si.cpuTemperature();
-    if (tempData.main === null) {
+    const fallbackTemp = tempData.main === null ? await readWindowsThermalZoneTemp() : null;
+    const nextTemp = tempData.main ?? fallbackTemp;
+
+    if (nextTemp === null) {
       return { success: false, temp: null, message: 'Cannot read CPU temperature' };
     }
 
     // Cache the result
-    cachedCpuTemp = tempData.main;
+    cachedCpuTemp = nextTemp;
     lastCpuTempTime = now;
 
-    return { success: true, temp: tempData.main };
+    return { success: true, temp: nextTemp };
   } catch (err) {
     console.error('Error reading CPU temp:', err);
     return { success: false, temp: null, message: 'Error reading CPU temperature' };
   }
-});
+}
 
-ipcMain.handle('get-cpu-power', async () => {
+async function readCpuPower() {
   try {
     const now = Date.now();
     if (cachedCpuPower !== null && (now - lastCpuPowerTime) < CPU_POWER_CACHE_MS) {
@@ -672,6 +697,56 @@ ipcMain.handle('get-cpu-power', async () => {
     console.error('Error reading CPU power:', err);
     return { success: false, power: null, message: 'Error reading CPU power' };
   }
+}
+
+async function getCpuTelemetrySnapshot() {
+  const [tempRes, powerRes] = await Promise.all([
+    readCpuTemp(),
+    readCpuPower()
+  ]);
+
+  return {
+    temp: tempRes?.success ? tempRes.temp : null,
+    power: powerRes?.success ? powerRes.power : null
+  };
+}
+
+ipcMain.handle('get-cpu-temp', async () => {
+  return readCpuTemp();
+});
+
+ipcMain.handle('get-cpu-power', async () => {
+  return readCpuPower();
+});
+
+async function getGpuTelemetrySnapshot() {
+  try {
+    const graphics = await si.graphics();
+    const controller = (graphics?.controllers || []).find((item) => {
+      const hasTemperature = Number.isFinite(item?.temperatureGpu) || Number.isFinite(item?.temperature);
+      const hasPower = Number.isFinite(item?.powerDraw) || Number.isFinite(item?.powerDrawCurrent);
+      return hasTemperature || hasPower;
+    }) || graphics?.controllers?.[0];
+
+    if (!controller) {
+      return { success: false, temp: null, power: null, message: 'No GPU telemetry available' };
+    }
+
+    const temp =
+      (typeof controller.temperatureGpu === 'number' && Number.isFinite(controller.temperatureGpu) ? controller.temperatureGpu : null) ??
+      (typeof controller.temperature === 'number' && Number.isFinite(controller.temperature) ? controller.temperature : null);
+    const power =
+      (typeof controller.powerDraw === 'number' && Number.isFinite(controller.powerDraw) ? controller.powerDraw : null) ??
+      (typeof controller.powerDrawCurrent === 'number' && Number.isFinite(controller.powerDrawCurrent) ? controller.powerDrawCurrent : null);
+
+    return { success: true, temp, power, controller: controller.model || controller.vendor || 'Unknown GPU' };
+  } catch (err) {
+    return { success: false, temp: null, power: null, message: err.message };
+  }
+}
+
+ipcMain.handle('get-gpu-sensors', async () => {
+  return getGpuTelemetrySnapshot();
 });
 
 // Window controls
@@ -1707,8 +1782,9 @@ ipcMain.handle("start-benchmark", async (event, { type, wallet, worker, solanaWa
         if (event?.sender) event.sender.send('miner-log', output);
 
         if (currentMinerType === 'cpu') {
-          si.cpuTemperature().then(tempData => {
-            if (tempData.main !== null) temps.push(tempData.main);
+          getCpuTelemetrySnapshot().then(({ temp, power }) => {
+            if (typeof temp === 'number' && Number.isFinite(temp)) temps.push(temp);
+            if (typeof power === 'number' && Number.isFinite(power)) powers.push(power);
           }).catch(() => { });
         }
       });
@@ -1780,6 +1856,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
     }
 
     const duration_seconds = startTime ? Math.floor((Date.now() - startTime) / 1000) : null;
+    const cpuTelemetry = currentMinerType === 'cpu' ? await getCpuTelemetrySnapshot() : { temp: null, power: null };
+    const gpuTelemetry = currentMinerType === 'gpu' ? await getGpuTelemetrySnapshot() : { temp: null, power: null };
 
     let benchmarkRecord = {
       avg_hashrate: avgHash,
@@ -1800,8 +1878,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
         ...benchmarkRecord,
         device_type: "GPU",
         device_name: gpuName,
-        avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
-        avg_power: powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : null,
+        avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : gpuTelemetry.temp,
+        avg_power: powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : gpuTelemetry.power,
         algorithm: "KawPow",
         coin_name: "XMR",
         solana_wallet_address: walletAddress
@@ -1811,7 +1889,8 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
         ...benchmarkRecord,
         device_type: "CPU",
         device_name: os.cpus()[0].model,
-        avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
+        avg_temp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : cpuTelemetry.temp,
+        avg_power: powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : cpuTelemetry.power,
         algorithm: "RandomX",
         coin_name: "XMR",
         solana_wallet_address: walletAddress
@@ -1845,9 +1924,11 @@ ipcMain.handle('get-latest-benchmark', async (event, deviceType) => {
   try {
     const { data, error } = await supabase
       .from('benchmarks')
-      .select('avg_hashrate, created_at')
+      .select('device_name, avg_hashrate, max_hashrate, duration_seconds, created_at')
       .eq('device_uid', deviceUID)
       .eq('device_type', deviceType.toUpperCase())
+      .gt('avg_hashrate', 0)
+      .order('avg_hashrate', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -2129,6 +2210,101 @@ ipcMain.handle("resume-mining", async (event) => {
 
 let mainWindow = null;
 
+async function runAutomatedBenchmarkSmokeTest() {
+  if (!mainWindow || process.env.MB_AUTORUN_BENCHMARK_SMOKE !== 'true') return;
+
+  const smokeConfig = {
+    type: 'cpu',
+    wallet: process.env.MB_TEST_MONERO_WALLET || '48ghPqjkJYEKAL1ukr9YmB6B8V1g9kjMrFkrP36ZnVLxHRyFs9odvapQtjFkWRyjsG1N3ipHqiByjHUNrDZTsxG2DRRHWjj',
+    worker: process.env.MB_TEST_WORKER || `codex-smoke-${Date.now()}`,
+    solanaWallet: process.env.MB_TEST_SOLANA_WALLET || '11111111111111111111111111111111',
+    durationMs: Math.max(Number(process.env.MB_AUTORUN_BENCHMARK_DURATION_MS || 45000), 15000)
+  };
+
+  log(`[benchmark-smoke] Starting automated benchmark with worker ${smokeConfig.worker}`);
+
+  const smokeScript = `
+    (async () => {
+      const config = ${JSON.stringify(smokeConfig)};
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const endpoints = [
+        'http://127.0.0.1:4077/2/summary',
+        'http://127.0.0.1:4077/api/v1/summary',
+        'http://127.0.0.1:4077/api/stats',
+        'http://127.0.0.1:4077/summary'
+      ];
+      const samples = [];
+
+      await window.electron.invoke('start-benchmark', {
+        type: config.type,
+        wallet: config.wallet,
+        worker: config.worker,
+        solanaWallet: config.solanaWallet
+      });
+
+      const startedAt = Date.now();
+      while ((Date.now() - startedAt) < config.durationMs) {
+        let payload = null;
+        for (const endpoint of endpoints) {
+          try {
+            const response = await fetch(endpoint);
+            if (response.ok) {
+              payload = await response.json();
+              break;
+            }
+          } catch {
+            // Keep trying the remaining endpoints.
+          }
+        }
+
+        if (payload) {
+          const hashrate = payload?.hashrate?.total?.[0] ?? payload?.hashrate?.current ?? payload?.hashrate ?? 0;
+          if (hashrate > 0) {
+            samples.push(hashrate);
+            const [tempRes, powerRes] = await Promise.all([
+              window.electron.invoke('get-cpu-temp').catch(() => null),
+              window.electron.invoke('get-cpu-power').catch(() => null)
+            ]);
+            await window.electron.invoke('report-stats', {
+              temp: tempRes?.success ? tempRes.temp : null,
+              power: powerRes?.success ? powerRes.power : null
+            }).catch(() => null);
+          }
+        }
+
+        await delay(3000);
+      }
+
+      const average = samples.length ? samples.reduce((sum, value) => sum + value, 0) / samples.length : 0;
+      const peak = samples.length ? Math.max(...samples) : 0;
+      const stopResult = await window.electron.invoke('stop-benchmark', {
+        avg_hashrate: average,
+        max_hashrate: peak,
+        wallet: config.solanaWallet
+      });
+
+      return {
+        worker: config.worker,
+        samples: samples.length,
+        avg_hashrate: average,
+        max_hashrate: peak,
+        stopResult
+      };
+    })();
+  `;
+
+  try {
+    const result = await mainWindow.webContents.executeJavaScript(smokeScript, true);
+    log(`[benchmark-smoke] Completed: ${JSON.stringify(result)}`);
+  } catch (err) {
+    log(`[benchmark-smoke] Failed: ${err.message}`);
+  } finally {
+    if (process.env.MB_AUTORUN_BENCHMARK_EXIT_ON_FINISH === 'true') {
+      setTimeout(() => app.quit(), 1000);
+    }
+  }
+}
+
 
 function getAppIcon() {
   const isWindows = process.platform === 'win32';
@@ -2228,6 +2404,10 @@ function createWindow() {
       mainWindow.loadURL("http://localhost:5173");
       mainWindow.webContents.openDevTools();
     }
+
+    mainWindow.webContents.once('did-finish-load', () => {
+      runAutomatedBenchmarkSmokeTest();
+    });
 
     log(`[createWindow] ? Window created successfully on ${process.platform}`);
     if (displayStatus.displayInfo) {

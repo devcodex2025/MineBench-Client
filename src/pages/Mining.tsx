@@ -8,6 +8,7 @@ import { cn, formatHashrate } from '../lib/utils';
 import { p2poolAPI } from '../services/p2poolAPI';
 import type { P2PoolStratumSnapshot } from '../services/p2poolAPI';
 import { getEnvironmentConfig } from '../config/environment';
+import { estimateBmtReward, estimateXmrReward } from '../lib/rewards';
 
 // Extend window type for API error logging
 declare global {
@@ -458,32 +459,27 @@ const Mining: React.FC = () => {
     // Update balance based on current hashrate from P2Pool estimation
     useEffect(() => {
         if (status === 'running' || status === 'paused') {
-            // Estimate reward based on hashrate using P2Pool formula
-            // Monero: 1 block every 120 seconds, ~0.6 XMR per block (approximate)
-            // Formula: (Your Hashrate / Network Hashrate) * Blocks Per Period * Block Reward
-
-            const networkHashrate = poolNetworkHashrate; // Already calculated from difficulty
-            const blockReward = 0.6; // Current Monero block reward (approximate)
-
-            // Prevent division by zero
-            if (networkHashrate <= 0 || currentHashrate <= 0) {
+            if (poolNetworkHashrate <= 0 || currentHashrate <= 0) {
                 setXmrBalance(0);
                 setBmtBalance(0);
                 return;
             }
 
-            const shareOfNetwork = currentHashrate / networkHashrate;
-
-            // Calculate rewards for mining duration
             const secondsMined = elapsedTime;
-            const blocksMined = (secondsMined / 120) * shareOfNetwork;
-            const xmrEarned = blocksMined * blockReward;
+            const xmrEarned = estimateXmrReward({
+                hashrate: currentHashrate,
+                seconds: secondsMined,
+                networkHashrate: poolNetworkHashrate
+            });
 
             setXmrBalance(xmrEarned);
 
-            // Convert XMR -> BMT using backend oracle rate (preferred)
-            const rate = Number.isFinite(rateXmrBmt) ? rateXmrBmt : 0;
-            const bmtEarned = rate > 0 ? (xmrEarned * rate * 0.8) : 0; // 80% after 20% fee
+            const bmtEarned = estimateBmtReward({
+                hashrate: currentHashrate,
+                seconds: secondsMined,
+                networkHashrate: poolNetworkHashrate,
+                rateXmrBmt
+            });
             setBmtBalance(Number.isFinite(bmtEarned) ? bmtEarned : 0);
         }
     }, [currentHashrate, rateXmrBmt, status, elapsedTime, poolNetworkHashrate]);

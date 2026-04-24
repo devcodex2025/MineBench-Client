@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useMinerStore, DeviceType } from '../store/useMinerStore';
 import { useSolanaAuth } from '../services/solanaAuth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -6,6 +6,7 @@ import { Play, Square, Cpu, Monitor, Timer, Zap } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { cn, formatHashrate } from '../lib/utils'; // Assumes formatHashrate is in utils
 import { getEnvironmentConfig } from '../config/environment';
+import { estimateDailyBmtReward } from '../lib/rewards';
 // import { ipcRenderer } from 'electron'; 
 
 // Adding IPC type safety shim for development if needed, 
@@ -29,6 +30,8 @@ const Benchmark = () => {
     const currentPower = useMinerStore(state => state.currentPower);
     const resetSession = useMinerStore(state => state.resetSession);
     const pools = useMinerStore(state => state.pools);
+    const poolNetworkHashrate = useMinerStore(state => state.poolNetworkHashrate);
+    const rateXmrBmt = useMinerStore(state => state.rateXmrBmt);
 
 
     const [duration, setDuration] = useState<number>(60);
@@ -49,6 +52,10 @@ const Benchmark = () => {
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
     // Keep local tracks for final calculation to avoid dependency on store sampling rate
     const localStatsRef = useRef<number[]>([]); 
+    const benchmarkApiStateRef = useRef<{ connectedUrl: string | null; errorLogged: boolean }>({
+        connectedUrl: null,
+        errorLogged: false
+    });
 
     // Load System Info
     useEffect(() => {
@@ -134,7 +141,7 @@ const Benchmark = () => {
     const startBenchmark = async () => {
         if (status === 'running') return;
         if (!isNodeFullySynced) {
-            addLog('⏳ Node is not fully synced (100%). Benchmark is disabled until sync completes.');
+            addLog('Node is not fully synced (100%). Benchmark is disabled until sync completes.');
             return;
         }
 
@@ -152,6 +159,7 @@ const Benchmark = () => {
     const runBenchmark = async () => {
         resetSession();
         localStatsRef.current = [];
+        benchmarkApiStateRef.current = { connectedUrl: null, errorLogged: false };
         setFinalResults(null);
         setTimeLeft(duration);
         setShowAuthWarning(false);
@@ -179,6 +187,7 @@ const Benchmark = () => {
 
             // Start Polling Stats
             statsIntervalRef.current = setInterval(fetchStats, 3000);
+            fetchStats();
 
         } catch (err: any) {
             console.error(err);
@@ -210,13 +219,14 @@ const Benchmark = () => {
     };
 
     const stopBenchmark = async () => {
+        await fetchStats();
         if (timerRef.current) clearInterval(timerRef.current);
         if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
         
         setStatus('stopping');
         
         // Calculate Results
-        const samples = localStatsRef.current;
+        const samples = localStatsRef.current.filter((value) => Number.isFinite(value) && value > 0);
         let avg = 0;
         let max = 0;
         
@@ -224,6 +234,9 @@ const Benchmark = () => {
              const sum = samples.reduce((a, b) => a + b, 0);
              avg = sum / samples.length;
              max = Math.max(...samples);
+        } else if (currentHashrate > 0) {
+             avg = currentHashrate;
+             max = currentHashrate;
         }
         
         setFinalResults({ avg, max });
@@ -261,73 +274,98 @@ const Benchmark = () => {
     };
 
     const fetchStats = async () => {
+        if (status !== 'running') return;
+
         try {
-            // CPU uses /2/summary, GPU uses /summary usually in our previous setup. 
-            // Let's adapt base on type
-            const actualUrl = deviceType === 'cpu' 
-                ? `http://127.0.0.1:4077/2/summary` 
-                : `http://127.0.0.1:4067/summary`;
+            const endpoints = deviceType === 'cpu'
+                ? [
+                    'http://127.0.0.1:4077/2/summary',
+                    'http://127.0.0.1:4077/api/v1/summary',
+                    'http://127.0.0.1:4077/api/stats',
+                    'http://127.0.0.1:4077/summary'
+                ]
+                : [
+                    'http://127.0.0.1:4067/summary',
+                    'http://127.0.0.1:4067/api/v1/summary'
+                ];
 
-            const res = await fetch(actualUrl).catch((err) => {
-                console.warn(`[Benchmark] Failed to fetch from ${actualUrl}:`, err.message);
-                return null;
-            });
+            let data: any = null;
+            let successUrl: string | null = null;
 
-            if (!res || !res.ok) {
-                // Miner not ready yet - log for debugging
-                if (res?.status) {
-                    console.warn(`[Benchmark] Miner API returned status ${res.status} from ${actualUrl}`);
-                } else {
-                    console.debug(`[Benchmark] Waiting for miner to start on ${actualUrl}...`);
+            for (const actualUrl of endpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
+                    const res = await fetch(actualUrl, { signal: controller.signal }).catch(() => null);
+                    clearTimeout(timeoutId);
+
+                    if (res && res.ok) {
+                        data = await res.json();
+                        successUrl = actualUrl;
+                        break;
+                    }
+                } catch {
+                    // Try the next endpoint.
+                }
+            }
+
+            if (!data) {
+                if (!benchmarkApiStateRef.current.errorLogged) {
+                    addLog(`Waiting for miner API... tried ${endpoints.length} endpoint(s)`);
+                    benchmarkApiStateRef.current.errorLogged = true;
                 }
                 return;
             }
 
-            const data = await res.json();
+            if (successUrl && benchmarkApiStateRef.current.connectedUrl !== successUrl) {
+                benchmarkApiStateRef.current = { connectedUrl: successUrl, errorLogged: false };
+                addLog(`Connected to miner API: ${successUrl}`);
+            }
 
-            
             let hr = 0;
-            let temp = null;
+            let temp: number | null = null;
             let power: number | null = null;
-            let miningActive = false;
 
             if (deviceType === 'cpu') {
-                hr = data.hashrate?.total?.[0] ?? 0;
-                miningActive = data.hashrate?.total?.length > 0;
-                // Fetch Temp + Power via IPC
+                hr = data.hashrate?.total?.[0] ??
+                    data.hashrate?.current ??
+                    data.hashrate ??
+                    0;
+
                 const [tempRes, powerRes] = await Promise.all([
                     window.electron.invoke('get-cpu-temp'),
                     window.electron.invoke('get-cpu-power')
                 ]);
+
                 if (tempRes && tempRes.success) temp = tempRes.temp;
                 if (powerRes && powerRes.success) power = powerRes.power;
-            } else {
-                // GPU
-                if (data.gpus && data.gpus.length > 0) {
-                     hr = data.gpus[0].hashrate ?? data.gpus[0].hash ?? 0;
-                     miningActive = hr > 0;
-                     temp = data.gpus[0].temperature ?? data.gpus[0].temp ?? 0;
-                     power = data.gpus[0].power ?? 0;
-                     
-                     // Send usage report to main process for DB tracking
-                     window.electron.invoke("report-stats", { temp, power });
-                }
-            }
 
-            if (!miningActive) {
-                console.debug(`[Benchmark] Miner is running but no hashrate detected yet. Data:`, data);
+                window.electron.invoke('report-stats', { temp, power }).catch(() => { });
+            } else if (data.gpus && data.gpus.length > 0) {
+                const sensorFallback = await window.electron.invoke('get-gpu-sensors').catch(() => null);
+                hr = data.gpus[0].hashrate ?? data.gpus[0].hash ?? 0;
+                temp = data.gpus[0].temperature ?? data.gpus[0].temp ?? sensorFallback?.temp ?? null;
+                power = data.gpus[0].power ?? sensorFallback?.power ?? null;
+                window.electron.invoke('report-stats', { temp, power }).catch(() => { });
             }
 
             if (hr > 0) {
                 updateStats(hr, temp, power ?? undefined);
                 localStatsRef.current.push(hr);
-                console.debug(`[Benchmark] Hashrate update: ${formatHashrate(hr)} | Temp: ${temp}°C`);
+                console.debug(`[Benchmark] Hashrate update: ${formatHashrate(hr)} | Temp: ${temp ?? 'n/a'}°C`);
             }
-
-        } catch (e) {
-            // display subtle error or ignoring during startup
+        } catch (e: any) {
+            console.warn('[Benchmark] fetchStats failed:', e?.message || e);
         }
     };
+
+    const estimatedDailyBenchmarkBmt = finalResults
+        ? estimateDailyBmtReward({
+            hashrate: finalResults.avg,
+            networkHashrate: poolNetworkHashrate,
+            rateXmrBmt
+        })
+        : 0;
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
@@ -486,7 +524,7 @@ const Benchmark = () => {
                                     ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
                                     : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
                             )}>
-                                ⏳ Node sync must be 100% to start benchmark.
+                                Node sync must be 100% to start benchmark.
                             </div>
                         )}
 
@@ -556,7 +594,7 @@ const Benchmark = () => {
                                     </div>
                                     <div className={cn("text-xl font-mono",
                                         theme === 'light' ? 'text-zinc-900' : 'text-white'
-                                    )}>{(currentTemp as number).toFixed(1)} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>°C</span></div>
+                                    )}>{(currentTemp as number).toFixed(1)} <span className={cn("text-xs", theme === 'light' ? 'text-zinc-500' : 'text-zinc-600')}>C</span></div>
                                 </div>
                             )}
                         </div>
@@ -618,7 +656,7 @@ const Benchmark = () => {
                                         <h3 className={cn("font-medium mb-4 flex items-center gap-2",
                                             theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
                                         )}>
-                        Included in 1.0 DB Report ✅
+                        Included in 1.0 DB Report
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         <div>
@@ -643,9 +681,8 @@ const Benchmark = () => {
                         </div>
                         <div>
                              <div className="text-xs text-emerald-500/60 uppercase tracking-widest">Est. Daily $BMT</div>
-                             {/* Mock calc: 1 MH/s ~ 100 BMT */}
                              <div className="text-2xl font-mono text-white mt-1">
-                                {(finalResults.avg / (deviceType === 'cpu' ? 1000 : 1000000) * 125).toFixed(2)}
+                                {estimatedDailyBenchmarkBmt.toFixed(2)}
                              </div>
                         </div>
                     </div>
@@ -710,3 +747,4 @@ const Benchmark = () => {
 };
 
 export default Benchmark;
+
