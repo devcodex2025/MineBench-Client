@@ -1,17 +1,17 @@
-[![MineBench Preview](./public/minebench-preview-main-800px.png)](https://minebench.cloud/downloads)
+[![MineBench crypto mining benchmark app preview](./public/minebench-preview-main-800px.png)](https://minebench.cloud/downloads)
 > The first mining benchmark that lets you **earn crypto while testing your hardware**.
 
 # MineBench Client
 > Open-source mining benchmark client built with Electron. Measure CPU & GPU performance, optimize hashrate, and earn crypto rewards on Solana.
 
-![Solana](https://img.shields.io/badge/Solana-3A3A3A?style=for-the-badge&logo=solana&logoColor=00FFA3)
-![Monero](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
-![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Electron JS](https://img.shields.io/badge/Electron_JS-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
-![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge)  
-[![MineBench logo](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
+![Solana blockchain support](https://img.shields.io/badge/Solana-3A3A3A?style=for-the-badge&logo=solana&logoColor=00FFA3)
+![Monero mining support](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
+![Linux app support](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Windows app support](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+![Electron JS desktop app](https://img.shields.io/badge/Electron_JS-47848F?style=for-the-badge&logo=electron&logoColor=white)
+![MIT License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+![Open source project](https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge)  
+[![MineBench logo for crypto mining benchmark platform](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
 >MineBench is a crypto mining benchmark tool that allows users to test hardware performance, compare results, and earn blockchain-based rewards.
 
 MineBench is a **crypto mining benchmark tool** designed to test CPU and GPU performance.
@@ -38,7 +38,7 @@ Unlike traditional benchmarks:
 - 💰 Earn crypto rewards for benchmarking
 
 ## Mining mode
-[![MineBench mining mode](/public/mining-mode-800px.png)](https://minebench.cloud/downloads)
+[![MineBench mining mode for Monero mining pool and crypto rewards](/public/mining-mode-800px.png)](https://minebench.cloud/downloads)
 
 In mining mode you can connect to MineBench own Monero mining pool and increase total hashrate of our pool.
 Rewards will be converted to [$BMT token](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
@@ -50,7 +50,7 @@ Rewards will be distributed in equivalent parts to each active tester in [$BMT t
 Join our testers community you can inside [Discord channel - MineBench](https://discord.gg/vsDyYh4rma)
 
 ## Benchmark mode
-[![MineBench mining mode](/public/benchmark-mode-800px.png)](https://minebench.cloud/downloads)
+[![MineBench benchmark mode for CPU and GPU mining performance test](/public/benchmark-mode-800px.png)](https://minebench.cloud/downloads)
 
 Our benchmark mode is the main feature of application. This application is built with goal to monetize benchmarks.
 Each benchmark matter. Instead of burning compute power each user who run the benchmark supported Monero blockchain network
@@ -61,7 +61,7 @@ not working yet. But if you run the benchmark you support our application and he
 
 ## Cards with mining pool stats
 
-[![MineBench mining mode](/public/minebench-preview-800px.png)](https://minebench.cloud/downloads)
+[![MineBench mining pool statistics with hashrate miners and found blocks](/public/minebench-preview-800px.png)](https://minebench.cloud/downloads)
 
 In real time each our miner can look at current total hashrate of our mining pool. You can see how many miners online. That current hashrate of pool.
 Also includes information about finded blocks.
