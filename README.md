@@ -1,8 +1,12 @@
 [![MineBench crypto mining benchmark app preview](./public/minebench-preview-main-800px.png)](https://minebench.cloud/downloads)
-> The first mining benchmark that lets you **earn crypto while testing your hardware**.
 
-# MineBench Client
-> Open-source mining benchmark client built with Electron. Measure CPU & GPU performance, optimize hashrate, and earn crypto rewards on Solana.
+# MineBench – Crypto Mining Benchmark Tool for CPU & GPU
+> The first crypto mining benchmark that lets you **earn crypto while testing CPU and GPU hardware**
+
+
+## What is MineBench?
+
+MineBench is a **crypto mining benchmark tool for CPU and GPU** that allows users to test hardware performance, measure hashrate, compare hardware, and earn crypto rewards through real mining workloads. It combines **hardware benchmarking** and real **crypto mining**, making it possible to turn performance testing into a reward-generating process for developers, miners, and crypto enthusiasts.
 
 ![Solana blockchain support](https://img.shields.io/badge/Solana-3A3A3A?style=for-the-badge&logo=solana&logoColor=00FFA3)
 ![Monero mining support](https://img.shields.io/badge/Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white)
@@ -12,14 +16,11 @@
 ![MIT License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 ![Open source project](https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge)  
 [![MineBench logo for crypto mining benchmark platform](public/minebench-logo-yellow-150px.png)](https://minebench.cloud/)
->MineBench is a crypto mining benchmark tool that allows users to test hardware performance, compare results, and earn blockchain-based rewards.
-
-MineBench is a **crypto mining benchmark tool** designed to test CPU and GPU performance.
 
 This **mining benchmark client** allows users to measure hashrate, optimize mining efficiency, and earn crypto rewards.
 
 
-## Features
+## Features of MineBench Crypto Mining Benchmark Tool
 
 - ⚡ CPU & GPU benchmarking
 - ⛏️ Integrated crypto mining support
@@ -29,7 +30,7 @@ This **mining benchmark client** allows users to measure hashrate, optimize mini
 - 🔐 Secure and lightweight Electron app
 
 
-## Why MineBench?
+## Why Choose MineBench for Crypto Mining Benchmarking
 
 Unlike traditional benchmarks:
 
@@ -37,7 +38,7 @@ Unlike traditional benchmarks:
 - 🔗 Blockchain-verified results
 - 💰 Earn crypto rewards for benchmarking
 
-## Mining mode
+## Mining Mode – Earn Crypto via Monero Mining Pool
 [![MineBench mining mode for Monero mining pool and crypto rewards](/public/mining-mode-800px.png)](https://minebench.cloud/downloads)
 
 In mining mode you can connect to MineBench own Monero mining pool and increase total hashrate of our pool.
@@ -49,7 +50,7 @@ Rewards will be distributed in equivalent parts to each active tester in [$BMT t
 
 Join our testers community you can inside [Discord channel - MineBench](https://discord.gg/vsDyYh4rma)
 
-## Benchmark mode
+## Benchmark Mode – CPU & GPU Performance Testing with Rewards
 [![MineBench benchmark mode for CPU and GPU mining performance test](/public/benchmark-mode-800px.png)](https://minebench.cloud/downloads)
 
 Our benchmark mode is the main feature of application. This application is built with goal to monetize benchmarks.
@@ -59,14 +60,14 @@ our mining pool receiving rewards and we will distribute 20% of rewards to each 
 In current period of time we looking for ways to implement automatica rewards feature. This feature of automatic rewards
 not working yet. But if you run the benchmark you support our application and help us earn money to build this functionality.
 
-## Cards with mining pool stats
+## Mining Pool Statistics – Hashrate, Miners, and Found Blocks
 
 [![MineBench mining pool statistics with hashrate miners and found blocks](/public/minebench-preview-800px.png)](https://minebench.cloud/downloads)
 
 In real time each our miner can look at current total hashrate of our mining pool. You can see how many miners online. That current hashrate of pool.
 Also includes information about finded blocks.
 
-## $BMT utility token
+## $BMT Token – Utility Token for Mining Rewards Distribution
 Token listed on pumpfun - [buy $BMT token to support app development](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
 
 $BMT token is a utility token. We will convert earned from mining Monero tokens to our token. And will distribute 80% of rewards in $BMT token to each user who participated in seeking the block.
@@ -91,14 +92,14 @@ That split matters:
 - TypeScript
 - Vite
 
-## Use Cases
+## Use Cases for Crypto Mining Benchmark and Hardware Testing
 
 - Benchmark your mining hardware
 - Compare GPU and CPU performance
 - Optimize mining efficiency
 - Earn crypto rewards via benchmarking
 
-## Development & contribution
+## Development & Contribution to MineBench Open Source Project
 
 MineBench Client is the desktop execution layer of the MineBench ecosystem. It
 combines the benchmark runtime, miner orchestration, wallet-aware reward
@@ -153,8 +154,8 @@ All operations are transparent and verifiable.
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
 
-## Download
+## Download MineBench Crypto Mining Benchmark App
 [![Download](https://img.shields.io/badge/⬇️_Download-MineBench-blue?style=for-the-badge)](https://minebench.cloud/downloads)
 
-## Support 
+## Support the Project – Buy $BMT Token 
 [![Support](https://img.shields.io/badge/💰_Support-Buy_Token-green?style=for-the-badge)](https://pump.fun/coin/67ipDsgK6D7bqTW89H8T1KTxUvVuaFy92GX7Q2XFVdev)
