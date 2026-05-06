@@ -111,11 +111,13 @@ export const MiningStatistics: React.FC = () => {
   const { theme } = useTheme();
   const { user, miningStats, statsLoading } = useSolanaAuth();
   const currentHashrate = useMinerStore(state => state.currentHashrate);
-  const totalRewards = useMinerStore(state => state.totalRewards);
+  const dbTotalBMT = useMinerStore(state => state.dbTotalBMT);
   const history = useMinerStore(state => state.history);
   const poolHashrateTotal = useMinerStore(state => state.poolHashrateTotal);
   const poolMinersCount = useMinerStore(state => state.poolMinersCount);
-  const safeTotalRewards = Number.isFinite(totalRewards) ? totalRewards : 0;
+  const safeTotalRewards = Number.isFinite(miningStats?.totalRewards)
+    ? Number(miningStats?.totalRewards)
+    : (Number.isFinite(dbTotalBMT) ? dbTotalBMT : 0);
 
   // Build reward history from live miner history (no mocks)
   const rewardHistory = useMemo<RewardData[]>(() => {
@@ -209,7 +211,7 @@ export const MiningStatistics: React.FC = () => {
         <StatCard
           icon={<Award className="w-5 h-5" />}
           title="Available BMT"
-          value={`${(Number.isFinite(miningStats?.totalRewards) ? miningStats.totalRewards : safeTotalRewards).toFixed(4)} $BMT`}
+          value={`${safeTotalRewards.toFixed(4)} $BMT`}
           subtitle="From backend"
           trend={12.5}
           theme={theme}

@@ -14,6 +14,7 @@ import { Activity, Coins, TrendingUp, AlertTriangle, X } from 'lucide-react';
 import { getEnvironmentConfig } from './config/environment';
 import { useSolanaAuth, SolanaAuthService } from './services/solanaAuth';
 import { estimateDailyBmtReward } from './lib/rewards';
+import { ClaimRewardsModal } from './components/ClaimRewardsModal';
 
 const PoolMonitor = () => {
     const updatePoolStatus = useMinerStore(state => state.updatePoolStatus);
@@ -157,7 +158,6 @@ const MiningPage = lazy(() => import('./pages/Mining'));
 const Dashboard = () => {
     const {
         pools,
-        totalRewards,
         dbTotalBMT,
         deviceType,
         poolHashrateTotal,
@@ -169,7 +169,7 @@ const Dashboard = () => {
         ratesLastUpdated,
         status
     } = useMinerStore();
-    const { user, isConnected } = useSolanaAuth();
+    const { user, isConnected, miningStats } = useSolanaAuth();
     const { theme } = useTheme();
 
     // Periodically sync confirmed balance from DB
@@ -225,6 +225,7 @@ const Dashboard = () => {
     const [estimatedHashrate, setEstimatedHashrate] = useState<number>(0);
     const [lastBenchmarkDate, setLastBenchmarkDate] = useState<Date | null>(null);
     const [estimatedDeviceName, setEstimatedDeviceName] = useState('');
+    const [showClaimModal, setShowClaimModal] = useState(false);
 
     // Load latest benchmark from the benchmark API on mount, device changes, and completed runs.
     useEffect(() => {
@@ -258,8 +259,9 @@ const Dashboard = () => {
         };
     }, [deviceType, status]);
 
-    const safeTotalBMT = totalRewards || 0;
-    const safeDbTotalBMT = dbTotalBMT || 0;
+    const safeDbTotalBMT = Number.isFinite(miningStats?.totalRewards)
+        ? Number(miningStats?.totalRewards)
+        : (Number.isFinite(dbTotalBMT) ? dbTotalBMT : 0);
     const MIN_CLAIM_AMOUNT = 100;
     const canClaim = safeDbTotalBMT >= MIN_CLAIM_AMOUNT;
     const claimProgress = Math.min((safeDbTotalBMT / MIN_CLAIM_AMOUNT) * 100, 100);
@@ -274,15 +276,26 @@ const Dashboard = () => {
     const BMT_TO_XMR_RATE = 1000;
     const xmrEquivalent = safeDbTotalBMT / BMT_TO_XMR_RATE;
 
+    const refreshConfirmedRewards = async () => {
+        if (!user?.publicKey) return null;
+        return SolanaAuthService.getInstance().fetchMiningStats(user.publicKey);
+    };
+
     const handleClaimRewards = async () => {
-        if (!canClaim || claiming) return;
+        if (claiming) return;
         try {
             setClaiming(true);
-            const result = await SolanaAuthService.getInstance().requestPayout(safeDbTotalBMT);
-            await SolanaAuthService.getInstance().fetchMiningStats(user?.publicKey || '');
-            alert(`Claim request created: ${result?.id || 'OK'}`);
+            const latestStats = await refreshConfirmedRewards();
+            const latestBalance = Number(latestStats?.totalRewards ?? useMinerStore.getState().dbTotalBMT ?? 0);
+
+            if (latestBalance < MIN_CLAIM_AMOUNT) {
+                alert(`${(MIN_CLAIM_AMOUNT - latestBalance).toFixed(2)} $BMT more to claim`);
+                return;
+            }
+
+            setShowClaimModal(true);
         } catch (err: any) {
-            alert(err?.message || 'Failed to create claim request');
+            alert(err?.message || 'Failed to refresh confirmed rewards');
         } finally {
             setClaiming(false);
         }
@@ -441,7 +454,7 @@ const Dashboard = () => {
                         <div className="space-y-2">
                             <div className="flex justify-between items-baseline">
                                 <div>
-                                    <div className={cn("text-3xl font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{safeTotalBMT.toFixed(2)} <span className={cn("text-sm", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>$BMT</span></div>
+                                    <div className={cn("text-3xl font-mono", theme === 'light' ? 'text-zinc-900' : 'text-white')}>{safeDbTotalBMT.toFixed(2)} <span className={cn("text-sm", theme === 'light' ? 'text-zinc-600' : 'text-zinc-500')}>$BMT</span></div>
                                     <div className={cn("text-xs font-mono mt-0.5", theme === 'light' ? 'text-zinc-600' : 'text-zinc-600')}>~ {xmrEquivalent.toFixed(6)} XMR</div>
                                 </div>
                             </div>
@@ -469,7 +482,7 @@ const Dashboard = () => {
 
                     <button
                         onClick={handleClaimRewards}
-                        disabled={!canClaim || claiming}
+                        disabled={!isConnected || !user?.publicKey || claiming}
                         className={cn(
                             "w-full mt-4 py-3 rounded-lg font-bold text-sm tracking-wide transition-all transform",
                             canClaim && !claiming
@@ -490,6 +503,17 @@ const Dashboard = () => {
                     </button>
                 </div>
             </div>
+
+            <ClaimRewardsModal
+                isOpen={showClaimModal}
+                onClose={() => setShowClaimModal(false)}
+                wallet={user?.publicKey || ''}
+                availableBalance={safeDbTotalBMT}
+                theme={theme}
+                onClaimed={async () => {
+                    await refreshConfirmedRewards();
+                }}
+            />
         </div>
     );
 };

@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useWalletAuthUrl } from '../hooks/useEnvironment';
 import { getEnvironmentConfig } from '../config/environment';
 import { cn } from '../lib/utils';
+import { useMinerStore } from '../store/useMinerStore';
 
 export const SolanaAuthButton: React.FC = () => {
   const { theme } = useTheme();
@@ -14,6 +15,14 @@ export const SolanaAuthButton: React.FC = () => {
   const [balLoading, setBalLoading] = useState(false);
   const [balError, setBalError] = useState<string | null>(null);
   const tokenMint = getEnvironmentConfig().bmtTokenMint;
+  const authService = SolanaAuthService.getInstance();
+  const dbTotalBMT = useMinerStore(state => state.dbTotalBMT);
+
+  useEffect(() => {
+    if (isConnected && user?.publicKey && Number.isFinite(dbTotalBMT)) {
+      setBmtBalance(dbTotalBMT);
+    }
+  }, [dbTotalBMT, isConnected, user?.publicKey]);
 
   // Fetch SPL token balance for BMT mint on Solana mainnet
   useEffect(() => {
@@ -22,6 +31,14 @@ export const SolanaAuthButton: React.FC = () => {
       try {
         setBalLoading(true);
         setBalError(null);
+
+        try {
+          const stats = await authService.fetchMiningStats(user.publicKey);
+          setBmtBalance(Number.isFinite(stats.totalRewards) ? stats.totalRewards : 0);
+          return;
+        } catch (e: any) {
+          console.warn('[BMT] DB reward balance failed, falling back to token balance:', e?.message);
+        }
 
         const owner = user.publicKey;
         let resolved = false;
@@ -112,8 +129,6 @@ export const SolanaAuthButton: React.FC = () => {
     };
     fetchBalance();
   }, [user?.publicKey]);
-
-  const authService = SolanaAuthService.getInstance();
 
   const isDark = theme === 'dark';
   const btnGradient = isDark

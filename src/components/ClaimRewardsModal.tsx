@@ -9,6 +9,7 @@ interface ClaimRewardsModalProps {
   wallet: string;
   availableBalance: number;
   theme: 'light' | 'dark';
+  onClaimed?: () => void | Promise<void>;
 }
 
 export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
@@ -17,6 +18,7 @@ export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
   wallet,
   availableBalance,
   theme,
+  onClaimed,
 }) => {
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +27,14 @@ export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
 
   const isDark = theme === 'dark';
   const MIN_WITHDRAWAL = 100;
+
+  React.useEffect(() => {
+    if (isOpen && availableBalance >= MIN_WITHDRAWAL) {
+      setAmount(Math.floor(availableBalance).toString());
+      setError(null);
+      setSuccess(null);
+    }
+  }, [isOpen, availableBalance]);
 
   const handleMaxClick = () => {
     setAmount(Math.floor(availableBalance).toString());
@@ -58,6 +68,7 @@ export const ClaimRewardsModal: React.FC<ClaimRewardsModalProps> = ({
       const data = await SolanaAuthService.getInstance().requestPayout(amountNum);
       setSuccess(`Withdrawal request submitted! ID: ${data.id || 'N/A'}`);
       setAmount('');
+      await onClaimed?.();
 
       // Close modal after 3 seconds
       setTimeout(() => {

@@ -10,7 +10,7 @@ import { DeveloperSettings } from './DeveloperSettings';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme } = useTheme();
-  const { sessionRewards, status, pools, poolHashrateTotal, poolMinersCount, xmrUsd, bmtUsd, rateXmrBmt } = useMinerStore();
+  const { dbTotalBMT, status, pools, poolHashrateTotal, poolMinersCount, xmrUsd, bmtUsd, rateXmrBmt } = useMinerStore();
   const poolLabels: Record<string, string> = {
     'cpu': 'CPU Primary',
     'cpu-backup': 'CPU Reserve'
@@ -123,11 +123,11 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             )}>
                 <div className={cn("text-xs mb-1 font-medium italic",
                   theme === 'light' ? 'text-emerald-900' : 'text-zinc-500'
-                )}>Available Rewards</div>
+                )}>Confirmed Rewards</div>
                 <div className={cn("font-mono text-xl font-medium flex items-baseline gap-1",
                   theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'
                 )}>
-                    {sessionRewards.toFixed(4)} <span className="text-[10px] text-emerald-500/70 uppercase tracking-widest">$BMT</span>
+                    {(Number.isFinite(dbTotalBMT) ? dbTotalBMT : 0).toFixed(4)} <span className="text-[10px] text-emerald-500/70 uppercase tracking-widest">$BMT</span>
                 </div>
             </div>
 
