@@ -597,7 +597,41 @@ ipcMain.handle("report-stats", async (event, { temp, power }) => {
   if (typeof power === "number") powers.push(power);
 });
 
+function getBenchmarkSubmitUrl() {
+  const explicit =
+    process.env.MB_BENCHMARK_SUBMIT_URL ||
+    process.env.BENCHMARK_SUBMIT_URL ||
+    fallbackConfig.benchmarkSubmitUrl;
+
+  return explicit || 'https://minebench.cloud/api/benchmarks';
+}
+
+async function sendToBenchmarkApi(data) {
+  const url = getBenchmarkSubmitUrl();
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(data),
+    signal: AbortSignal.timeout(10000)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Benchmark API returned ${response.status}`);
+  }
+
+  return payload;
+}
+
 async function sendToDatabase(data) {
+  try {
+    const payload = await sendToBenchmarkApi(data);
+    console.log("вњ… Data sent to benchmark API:", payload);
+    return { success: true };
+  } catch (apiErr) {
+    console.warn("вљ пёЏ Benchmark API submit failed, trying Supabase fallback:", apiErr.message);
+  }
+
   try {
     const { error } = await supabase
       .from('benchmarks')
@@ -1922,23 +1956,60 @@ ipcMain.handle("stop-benchmark", async (event, benchmarkData) => {
 // Fetch latest benchmark for device from Supabase
 ipcMain.handle('get-latest-benchmark', async (event, deviceType) => {
   try {
+    const normalizedDeviceType = String(deviceType || 'cpu').toUpperCase();
+    const getLocalDeviceName = async () => {
+      if (normalizedDeviceType === 'GPU') {
+        try {
+          const graphics = await si.graphics();
+          return graphics.controllers?.[0]?.model || null;
+        } catch (e) {
+          console.warn('[get-latest-benchmark] Could not read GPU name:', e.message);
+          return null;
+        }
+      }
+
+      return os.cpus()?.[0]?.model || null;
+    };
+
+    const benchmarkColumns = 'device_name, avg_hashrate, max_hashrate, duration_seconds, created_at';
     const { data, error } = await supabase
       .from('benchmarks')
-      .select('device_name, avg_hashrate, max_hashrate, duration_seconds, created_at')
+      .select(benchmarkColumns)
       .eq('device_uid', deviceUID)
-      .eq('device_type', deviceType.toUpperCase())
+      .eq('device_type', normalizedDeviceType)
       .gt('avg_hashrate', 0)
       .order('avg_hashrate', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.warn('[get-latest-benchmark] DB error:', error.message);
       return null;
     }
 
-    return data;
+    if (data) return data;
+
+    const localDeviceName = await getLocalDeviceName();
+    if (!localDeviceName) return null;
+
+    const { data: deviceNameData, error: deviceNameError } = await supabase
+      .from('benchmarks')
+      .select(benchmarkColumns)
+      .eq('device_type', normalizedDeviceType)
+      .eq('device_name', localDeviceName)
+      .gt('avg_hashrate', 0)
+      .order('avg_hashrate', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (deviceNameError) {
+      console.warn('[get-latest-benchmark] Device-name fallback DB error:', deviceNameError.message);
+      return null;
+    }
+
+    return deviceNameData;
   } catch (err) {
     console.error('[get-latest-benchmark] Error:', err);
     return null;

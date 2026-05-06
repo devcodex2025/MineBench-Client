@@ -1,5 +1,6 @@
 {
   "publicConfigUrl": "https://backend.minebench.cloud/public/config",
+  "benchmarkSubmitUrl": "https://minebench.cloud/api/benchmarks",
   "poolConfigAllowlist": [
     "xmr.minebench.cloud",
     "xmr2.minebench.cloud"
