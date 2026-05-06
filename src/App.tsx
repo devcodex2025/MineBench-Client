@@ -166,7 +166,8 @@ const Dashboard = () => {
         xmrUsd,
         bmtUsd,
         rateXmrBmt,
-        ratesLastUpdated
+        ratesLastUpdated,
+        status
     } = useMinerStore();
     const { user, isConnected } = useSolanaAuth();
     const { theme } = useTheme();
@@ -225,11 +226,15 @@ const Dashboard = () => {
     const [lastBenchmarkDate, setLastBenchmarkDate] = useState<Date | null>(null);
     const [estimatedDeviceName, setEstimatedDeviceName] = useState('');
 
-    // Load latest benchmark from Supabase on mount and when deviceType changes
+    // Load latest benchmark from the benchmark API on mount, device changes, and completed runs.
     useEffect(() => {
+        let cancelled = false;
+
         const fetchLatestBenchmark = async () => {
             try {
                 const result = await window.electron.invoke('get-latest-benchmark', deviceType);
+                if (cancelled) return;
+
                 if (result?.avg_hashrate) {
                     setEstimatedHashrate(result.avg_hashrate);
                     setEstimatedDeviceName(result.device_name || '');
@@ -242,11 +247,16 @@ const Dashboard = () => {
                     setLastBenchmarkDate(null);
                 }
             } catch (e) {
-                console.warn('Failed to load benchmark from DB:', e);
+                console.warn('Failed to load latest benchmark:', e);
             }
         };
-        fetchLatestBenchmark();
-    }, [deviceType]);
+
+        const timeoutId = window.setTimeout(fetchLatestBenchmark, status === 'completed' ? 750 : 0);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [deviceType, status]);
 
     const safeTotalBMT = totalRewards || 0;
     const safeDbTotalBMT = dbTotalBMT || 0;

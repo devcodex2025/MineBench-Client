@@ -50,6 +50,7 @@ const Benchmark = () => {
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const isBenchmarkPollingRef = useRef(false);
     // Keep local tracks for final calculation to avoid dependency on store sampling rate
     const localStatsRef = useRef<number[]>([]); 
     const benchmarkApiStateRef = useRef<{ connectedUrl: string | null; errorLogged: boolean }>({
@@ -94,6 +95,7 @@ const Benchmark = () => {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
+            isBenchmarkPollingRef.current = false;
             if (timerRef.current) clearInterval(timerRef.current);
             if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
         };
@@ -158,6 +160,7 @@ const Benchmark = () => {
 
     const runBenchmark = async () => {
         resetSession();
+        isBenchmarkPollingRef.current = true;
         localStatsRef.current = [];
         benchmarkApiStateRef.current = { connectedUrl: null, errorLogged: false };
         setFinalResults(null);
@@ -186,10 +189,11 @@ const Benchmark = () => {
             }, 1000);
 
             // Start Polling Stats
-            statsIntervalRef.current = setInterval(fetchStats, 3000);
-            fetchStats();
+            statsIntervalRef.current = setInterval(() => fetchStats(), 3000);
+            fetchStats(true);
 
         } catch (err: any) {
+            isBenchmarkPollingRef.current = false;
             console.error(err);
             setStatus('error');
             addLog(`Error starting: ${err.message}`);
@@ -219,7 +223,8 @@ const Benchmark = () => {
     };
 
     const stopBenchmark = async () => {
-        await fetchStats();
+        await fetchStats(true);
+        isBenchmarkPollingRef.current = false;
         if (timerRef.current) clearInterval(timerRef.current);
         if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
         
@@ -234,9 +239,12 @@ const Benchmark = () => {
              const sum = samples.reduce((a, b) => a + b, 0);
              avg = sum / samples.length;
              max = Math.max(...samples);
-        } else if (currentHashrate > 0) {
-             avg = currentHashrate;
-             max = currentHashrate;
+        } else {
+             const latestHashrate = useMinerStore.getState().currentHashrate;
+             if (latestHashrate > 0) {
+                 avg = latestHashrate;
+                 max = latestHashrate;
+             }
         }
         
         setFinalResults({ avg, max });
@@ -273,8 +281,8 @@ const Benchmark = () => {
         }
     };
 
-    const fetchStats = async () => {
-        if (status !== 'running') return;
+    const fetchStats = async (force = false) => {
+        if (!force && !isBenchmarkPollingRef.current && useMinerStore.getState().status !== 'running') return;
 
         try {
             const endpoints = deviceType === 'cpu'

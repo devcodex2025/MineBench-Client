@@ -623,6 +623,24 @@ async function sendToBenchmarkApi(data) {
   return payload;
 }
 
+async function fetchBenchmarksFromApi(limit = 500) {
+  const url = new URL(getBenchmarkSubmitUrl());
+  url.searchParams.set('limit', String(limit));
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(10000)
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error((payload && payload.error) || `Benchmark API returned ${response.status}`);
+  }
+
+  return Array.isArray(payload) ? payload : [];
+}
+
 async function sendToDatabase(data) {
   try {
     const payload = await sendToBenchmarkApi(data);
@@ -1972,6 +1990,43 @@ ipcMain.handle('get-latest-benchmark', async (event, deviceType) => {
     };
 
     const benchmarkColumns = 'device_name, avg_hashrate, max_hashrate, duration_seconds, created_at';
+    try {
+      const apiBenchmarks = await fetchBenchmarksFromApi(500);
+      const validApiBenchmarks = apiBenchmarks
+        .filter((item) =>
+          String(item.device_type || '').toUpperCase() === normalizedDeviceType &&
+          Number(item.avg_hashrate) > 0
+        )
+        .sort((a, b) => Number(b.avg_hashrate || 0) - Number(a.avg_hashrate || 0));
+
+      const apiByDeviceUid = validApiBenchmarks.find((item) => item.device_uid === deviceUID);
+      if (apiByDeviceUid) {
+        return {
+          device_name: apiByDeviceUid.device_name,
+          avg_hashrate: Number(apiByDeviceUid.avg_hashrate),
+          max_hashrate: Number(apiByDeviceUid.max_hashrate || apiByDeviceUid.avg_hashrate),
+          duration_seconds: apiByDeviceUid.duration_seconds,
+          created_at: apiByDeviceUid.created_at
+        };
+      }
+
+      const localDeviceName = await getLocalDeviceName();
+      if (localDeviceName) {
+        const apiByDeviceName = validApiBenchmarks.find((item) => item.device_name === localDeviceName);
+        if (apiByDeviceName) {
+          return {
+            device_name: apiByDeviceName.device_name,
+            avg_hashrate: Number(apiByDeviceName.avg_hashrate),
+            max_hashrate: Number(apiByDeviceName.max_hashrate || apiByDeviceName.avg_hashrate),
+            duration_seconds: apiByDeviceName.duration_seconds,
+            created_at: apiByDeviceName.created_at
+          };
+        }
+      }
+    } catch (apiError) {
+      console.warn('[get-latest-benchmark] Benchmark API fallback failed:', apiError.message);
+    }
+
     const { data, error } = await supabase
       .from('benchmarks')
       .select(benchmarkColumns)

@@ -1,6 +1,8 @@
 {
   "publicConfigUrl": "https://backend.minebench.cloud/public/config",
   "benchmarkSubmitUrl": "https://minebench.cloud/api/benchmarks",
+  "supabaseUrl": "https://mmwtuyllptkelcfujaod.supabase.co",
+  "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1td3R1eWxscHRrZWxjZnVqYW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NDA2ODIsImV4cCI6MjA3NjUxNjY4Mn0.CGVlOAFfRWR9MyRpYW99gppLgVMcrG8sz83bO3YEhoA",
   "poolConfigAllowlist": [
     "xmr.minebench.cloud",
     "xmr2.minebench.cloud"
